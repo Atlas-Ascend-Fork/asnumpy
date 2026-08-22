@@ -370,9 +370,26 @@ NPUArray Degrees(const NPUArray& x) {
     void* factorPtr = nullptr;
     auto error = aclGetRawTensorAddr(factorArr.tensorPtr, &factorPtr);
     ACL_RT_CHECK(error, "aclGetRawTensorAddr");
-    double hostValue = factor;
-    error = aclrtMemcpy(factorPtr, sizeof(double), &hostValue, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
-    ACL_RT_CHECK(error, "Write const factor");
+    // factorArr is allocated with aclType, so the scalar has to be written using that
+    // type's own width. An unconditional sizeof(double) store overflows the 4-byte
+    // (ACL_FLOAT) and 2-byte (ACL_FLOAT16) allocations. aclType is normalised above to
+    // one of ACL_DOUBLE / ACL_FLOAT / ACL_FLOAT16, so these branches are exhaustive.
+    if (aclType == ACL_DOUBLE) {
+        double hostValue = factor;
+        error = aclrtMemcpy(factorPtr, sizeof(double), &hostValue, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "Write const factor");
+    } else if (aclType == ACL_FLOAT) {
+        float hostValue = static_cast<float>(factor);
+        error = aclrtMemcpy(factorPtr, sizeof(float), &hostValue, sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "Write const factor");
+    } else {
+        float hostFloat = static_cast<float>(factor);
+        uint32_t floatBits = __builtin_bit_cast(uint32_t, hostFloat);
+        uint16_t fp16Bits = static_cast<uint16_t>(
+            ((floatBits >> 16) & 0x8000U) | (((floatBits >> 13) - 0x1C000U) & 0x7C00U) | ((floatBits >> 13) & 0x03FFU));
+        error = aclrtMemcpy(factorPtr, sizeof(uint16_t), &fp16Bits, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "Write const factor");
+    }
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor = nullptr;
     error = aclnnMulGetWorkspaceSize(x.tensorPtr, factorArr.tensorPtr, out.tensorPtr, &workspaceSize, &executor);
