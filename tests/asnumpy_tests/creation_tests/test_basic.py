@@ -72,6 +72,17 @@ def test_empty(xp, dtype):
     return xp.zeros((2, 3), dtype=dtype)
 
 
+def test_linspace_int64_preserves_dtype():
+    """Test that linspace keeps an explicitly requested int64 dtype."""
+    import asnumpy as ap
+
+    expected = numpy.full(5, 3_000_000_000, dtype=numpy.int64)
+    actual = ap.linspace(3_000_000_000, 3_000_000_000, 5, dtype=numpy.int64).to_numpy()
+
+    numpy.testing.assert_array_equal(actual, expected)
+    assert actual.dtype == numpy.dtype(numpy.int64)
+
+
 # ========== 多种形状测试（使用 TEST_SHAPES 常量）==========
 
 
