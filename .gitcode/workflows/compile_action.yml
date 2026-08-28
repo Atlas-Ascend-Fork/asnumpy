@@ -6,13 +6,24 @@ on:
       task_name:
         required: true
         type: string
-      image_version:
+      image:
         required: true
         type: string
       arch:
         required: false
         type: string
         default: 'x64'
+      python_bin:
+        required: false
+        type: string
+        default: 'python3'
+      ref:
+        required: true
+        type: string
+      download_pr_artifacts:
+        required: false
+        type: string
+        default: 'true'
       package_name:
         required: false
         type: string
@@ -32,10 +43,11 @@ jobs:
         identifier: process_checkout
         uses: checkout
         with:
-          ref: ${{ atomgit.event.pull_request.merge_commit_sha  }}
+          ref: ${{ inputs.ref }}
           token: ${{secrets.GIT_TOKEN}}
       -
         name: download
+        if: ${{ inputs.download_pr_artifacts == 'true' }}
         uses: obs-download
         with:
           endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
@@ -58,6 +70,7 @@ jobs:
             cd ${{ steps.process_checkout.outputs.path }}
             export task_name=${{ inputs.task_name }}
             export target_branch=${{ env.TARGET_BRANCH }}
+            export PYTHON_BIN='${{ inputs.python_bin }}'
             BuildAccelerate bash compile.sh
           AC_SERVER_IP: ${{ vars.AC_SERVER_IP }}
       -
@@ -65,13 +78,16 @@ jobs:
         if: ${{ inputs.package_name != '' }}
         run: |
           cd ${{ steps.process_checkout.outputs.path }}/dist
-          for f in *.whl; do
-            [ -f "$f" ] || continue
-            [ "$f" = "${{ inputs.package_name }}" ] && continue
+          wheel_count=$(ls *.whl 2>/dev/null | wc -l)
+          if [ "${wheel_count}" != "1" ]; then
+            echo "Skip rename: ${wheel_count} wheels present, keeping canonical artifact names."
+            exit 0
+          fi
+          f=$(ls *.whl)
+          if [ "$f" != "${{ inputs.package_name }}" ]; then
             mv "$f" "${{ inputs.package_name }}"
             echo "Renamed: $f -> ${{ inputs.package_name }}"
-            break
-          done
+          fi
       - name: upload
         uses: obs-upload
         with:
@@ -87,4 +103,4 @@ jobs:
       - arch=${{ inputs.arch }}
       - spec=xlarge
     container:
-      image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
+      image: ${{ inputs.image }}

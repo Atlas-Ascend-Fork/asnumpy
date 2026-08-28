@@ -1,0 +1,36 @@
+name: release
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  org_name: ${{ vars.ORG_NAME }}
+  repo_name: ${{ atomgit.event.repository.name }}
+  TARGET_BRANCH: ${{ atomgit.ref_name }}
+  obs_path: "${{ env.org_name }}/${{ env.repo_name }}/release/${{ atomgit.ref_name }}"
+  compile_image: swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-ubuntu22.04-py3.11-devel
+
+stages:
+  release:
+    name: Release
+    fail-fast: false
+    jobs:
+      JOB_release_x86:
+        name: Release_X86
+        uses: .gitcode/workflows/compile_action.yml
+        with:
+          task_name: "Release_X86"
+          image: ${{ env.compile_image }}
+          arch: "x64"
+          ref: ${{ atomgit.sha }}
+          download_pr_artifacts: 'false'
+      JOB_release_arm:
+        name: Release_ARM
+        uses: .gitcode/workflows/compile_action.yml
+        with:
+          task_name: "Release_ARM"
+          image: ${{ env.compile_image }}
+          arch: "arm64"
+          ref: ${{ atomgit.sha }}
+          download_pr_artifacts: 'false'
