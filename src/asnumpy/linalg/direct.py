@@ -23,6 +23,9 @@ from .._core import (
     einsum as _einsum,
 )
 from .._core import (
+    matmul as _matmul,
+)
+from .._core import (
     vdot as _vdot,
 )
 from .._types import ArrayLike
@@ -70,7 +73,10 @@ def vdot(a: ArrayLike, b: ArrayLike) -> ndarray:
 
 
 def matmul(x1: ArrayLike, x2: ArrayLike) -> ndarray:
-    return _to_asnumpy_array(np.matmul(_as_host_array(x1), _as_host_array(x2)))
+    # aclnnMatmul only supports FLOAT/FLOAT16/BFLOAT16; FP64 inputs fall back to NumPy
+    if _requires_fp64_fallback(x1, x2):
+        return _to_asnumpy_array(np.matmul(_as_host_array(x1), _as_host_array(x2)))
+    return ndarray(_matmul(x1, x2))
 
 
 def einsum(subscripts: str, *operands: ArrayLike) -> ndarray:

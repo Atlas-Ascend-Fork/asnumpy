@@ -17,14 +17,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, TypeVar, Union
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, Union
 
 import numpy as np
 
 if TYPE_CHECKING:
     from .utils import ndarray  # noqa: F401
 
-ArrayLike = Union[  # noqa: UP007
+ArrayLike: TypeAlias = Union[  # noqa: UP007
     "ndarray",  # NPUArray — string forward ref to avoid circular import
     np.ndarray,
     int,
@@ -34,15 +34,15 @@ ArrayLike = Union[  # noqa: UP007
     Sequence,
 ]
 
-DTypeLike = np.dtype | str | type | None
+DTypeLike: TypeAlias = np.dtype | str | type | None
 
-ShapeLike = int | Sequence[int]
+ShapeLike: TypeAlias = int | Sequence[int]
 
-AxisLike = int | Sequence[int] | None
+AxisLike: TypeAlias = int | Sequence[int] | None
 
-AxisOptional = int | Sequence[int] | None
+AxisOptional: TypeAlias = int | Sequence[int] | None
 
-ScalarLike = int | float | complex | bool
+ScalarLike: TypeAlias = int | float | complex | bool
 
 T = TypeVar("T")
 
