@@ -1,0 +1,337 @@
+name: ci-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "要探测的自托管资源池"
+        type: choice
+        required: true
+        default: compile_x86
+        options:
+          - compile_x86
+          - compile_arm
+          - staticcheck
+          - presmoke_a2
+          - all
+
+stages:
+  probe:
+    name: ProbeRunner
+    fail-fast: false
+    jobs:
+      JOB_compile_x86:
+        name: Probe_Compile_X86
+        if: ${{ inputs.target == 'compile_x86' || inputs.target == 'all' }}
+        timeout-minutes: 15
+        runs-on: ['self-hosted', 'arch=x64', 'spec=xlarge']
+        steps:
+          - name: probe_env
+            run: |
+              set -euo pipefail
+              section() {
+                echo "===================================================================="
+                echo "$1"
+                echo "===================================================================="
+              }
+              section "Trigger / runner context"
+              echo "ATOMGIT_EVENT_NAME=${ATOMGIT_EVENT_NAME:-<unset>}"
+              echo "ATOMGIT_WORKFLOW=${ATOMGIT_WORKFLOW:-<unset>}"
+              echo "ATOMGIT_REPOSITORY=${ATOMGIT_REPOSITORY:-<unset>}"
+              echo "ATOMGIT_REF=${ATOMGIT_REF:-<unset>}"
+              echo "ATOMGIT_SHA=${ATOMGIT_SHA:-<unset>}"
+              echo "ATOMGIT_RUNNER_OS=${ATOMGIT_RUNNER_OS:-<unset>}"
+              echo "ATOMGIT_RUNNER_ARCH=${ATOMGIT_RUNNER_ARCH:-<unset>}"
+              echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE:-<unset>}"
+              echo "probe_target=${{ inputs.target }}"
+              echo "job_name=Probe_Compile_X86"
+              echo "runs_on=self-hosted,arch=x64,spec=xlarge"
+
+              section "Machine"
+              echo "whoami=$(whoami 2>/dev/null || true)"
+              echo "pwd=$(pwd)"
+              echo "date=$(date -Is 2>/dev/null || date)"
+              echo "hostname=$(hostname 2>/dev/null || true)"
+              uname -a || true
+              if [ -f /etc/os-release ]; then
+                cat /etc/os-release
+              else
+                echo "/etc/os-release not found"
+              fi
+              echo "nproc=$(nproc 2>/dev/null || true)"
+              (command -v free >/dev/null && free -h) || true
+              (command -v lscpu >/dev/null && lscpu | head -n 20) || true
+
+              section "Python"
+              for bin in python python3 python3.10 python3.11 python3.12; do
+                if command -v "$bin" >/dev/null 2>&1; then
+                  echo "-- $bin -> $(command -v "$bin")"
+                  "$bin" --version || true
+                else
+                  echo "-- $bin not found"
+                fi
+              done
+              for pipbin in pip pip3 pip3.10; do
+                if command -v "$pipbin" >/dev/null 2>&1; then
+                  echo "-- $pipbin -> $(command -v "$pipbin")"
+                  "$pipbin" --version || true
+                else
+                  echo "-- $pipbin not found"
+                fi
+              done
+              if command -v conda >/dev/null 2>&1; then
+                echo "-- conda -> $(command -v conda)"
+                conda --version || true
+                conda info --envs || true
+              else
+                echo "-- conda not found"
+              fi
+
+              section "Ascend / CANN"
+              env | grep -E '^ASCEND_|^CANN_|^LD_LIBRARY_PATH=|^PATH=' | sort || true
+              for p in /usr/local/Ascend /home/jenkins/Ascend /usr/local/Ascend/ascend-toolkit /home/jenkins/Ascend/ascend-toolkit /usr/local/Ascend/cann; do
+                if [ -e "$p" ]; then
+                  echo "exists: $p"
+                  ls -ld "$p" || true
+                else
+                  echo "missing: $p"
+                fi
+              done
+              command -v npu-smi >/dev/null 2>&1 && npu-smi info || echo "npu-smi not found"
+
+      JOB_compile_arm:
+        name: Probe_Compile_ARM
+        if: ${{ inputs.target == 'compile_arm' || inputs.target == 'all' }}
+        timeout-minutes: 15
+        runs-on: ['self-hosted', 'arch=arm64', 'spec=xlarge']
+        steps:
+          - name: probe_env
+            run: |
+              set -euo pipefail
+              section() {
+                echo "===================================================================="
+                echo "$1"
+                echo "===================================================================="
+              }
+              section "Trigger / runner context"
+              echo "ATOMGIT_EVENT_NAME=${ATOMGIT_EVENT_NAME:-<unset>}"
+              echo "ATOMGIT_WORKFLOW=${ATOMGIT_WORKFLOW:-<unset>}"
+              echo "ATOMGIT_REPOSITORY=${ATOMGIT_REPOSITORY:-<unset>}"
+              echo "ATOMGIT_REF=${ATOMGIT_REF:-<unset>}"
+              echo "ATOMGIT_SHA=${ATOMGIT_SHA:-<unset>}"
+              echo "ATOMGIT_RUNNER_OS=${ATOMGIT_RUNNER_OS:-<unset>}"
+              echo "ATOMGIT_RUNNER_ARCH=${ATOMGIT_RUNNER_ARCH:-<unset>}"
+              echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE:-<unset>}"
+              echo "probe_target=${{ inputs.target }}"
+              echo "job_name=Probe_Compile_ARM"
+              echo "runs_on=self-hosted,arch=arm64,spec=xlarge"
+
+              section "Machine"
+              echo "whoami=$(whoami 2>/dev/null || true)"
+              echo "pwd=$(pwd)"
+              echo "date=$(date -Is 2>/dev/null || date)"
+              echo "hostname=$(hostname 2>/dev/null || true)"
+              uname -a || true
+              if [ -f /etc/os-release ]; then
+                cat /etc/os-release
+              else
+                echo "/etc/os-release not found"
+              fi
+              echo "nproc=$(nproc 2>/dev/null || true)"
+              (command -v free >/dev/null && free -h) || true
+              (command -v lscpu >/dev/null && lscpu | head -n 20) || true
+
+              section "Python"
+              for bin in python python3 python3.10 python3.11 python3.12; do
+                if command -v "$bin" >/dev/null 2>&1; then
+                  echo "-- $bin -> $(command -v "$bin")"
+                  "$bin" --version || true
+                else
+                  echo "-- $bin not found"
+                fi
+              done
+              for pipbin in pip pip3 pip3.10; do
+                if command -v "$pipbin" >/dev/null 2>&1; then
+                  echo "-- $pipbin -> $(command -v "$pipbin")"
+                  "$pipbin" --version || true
+                else
+                  echo "-- $pipbin not found"
+                fi
+              done
+              if command -v conda >/dev/null 2>&1; then
+                echo "-- conda -> $(command -v conda)"
+                conda --version || true
+                conda info --envs || true
+              else
+                echo "-- conda not found"
+              fi
+
+              section "Ascend / CANN"
+              env | grep -E '^ASCEND_|^CANN_|^LD_LIBRARY_PATH=|^PATH=' | sort || true
+              for p in /usr/local/Ascend /home/jenkins/Ascend /usr/local/Ascend/ascend-toolkit /home/jenkins/Ascend/ascend-toolkit /usr/local/Ascend/cann; do
+                if [ -e "$p" ]; then
+                  echo "exists: $p"
+                  ls -ld "$p" || true
+                else
+                  echo "missing: $p"
+                fi
+              done
+              command -v npu-smi >/dev/null 2>&1 && npu-smi info || echo "npu-smi not found"
+
+      JOB_staticcheck:
+        name: Probe_StaticCheck
+        if: ${{ inputs.target == 'staticcheck' || inputs.target == 'all' }}
+        timeout-minutes: 15
+        runs-on: ['self-hosted', 'arch=x64', 'spec=medium']
+        steps:
+          - name: probe_env
+            run: |
+              set -euo pipefail
+              section() {
+                echo "===================================================================="
+                echo "$1"
+                echo "===================================================================="
+              }
+              section "Trigger / runner context"
+              echo "ATOMGIT_EVENT_NAME=${ATOMGIT_EVENT_NAME:-<unset>}"
+              echo "ATOMGIT_WORKFLOW=${ATOMGIT_WORKFLOW:-<unset>}"
+              echo "ATOMGIT_REPOSITORY=${ATOMGIT_REPOSITORY:-<unset>}"
+              echo "ATOMGIT_REF=${ATOMGIT_REF:-<unset>}"
+              echo "ATOMGIT_SHA=${ATOMGIT_SHA:-<unset>}"
+              echo "ATOMGIT_RUNNER_OS=${ATOMGIT_RUNNER_OS:-<unset>}"
+              echo "ATOMGIT_RUNNER_ARCH=${ATOMGIT_RUNNER_ARCH:-<unset>}"
+              echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE:-<unset>}"
+              echo "probe_target=${{ inputs.target }}"
+              echo "job_name=Probe_StaticCheck"
+              echo "runs_on=self-hosted,arch=x64,spec=medium"
+
+              section "Machine"
+              echo "whoami=$(whoami 2>/dev/null || true)"
+              echo "pwd=$(pwd)"
+              echo "date=$(date -Is 2>/dev/null || date)"
+              echo "hostname=$(hostname 2>/dev/null || true)"
+              uname -a || true
+              if [ -f /etc/os-release ]; then
+                cat /etc/os-release
+              else
+                echo "/etc/os-release not found"
+              fi
+              echo "nproc=$(nproc 2>/dev/null || true)"
+              (command -v free >/dev/null && free -h) || true
+              (command -v lscpu >/dev/null && lscpu | head -n 20) || true
+
+              section "Python"
+              for bin in python python3 python3.10 python3.11 python3.12; do
+                if command -v "$bin" >/dev/null 2>&1; then
+                  echo "-- $bin -> $(command -v "$bin")"
+                  "$bin" --version || true
+                else
+                  echo "-- $bin not found"
+                fi
+              done
+              for pipbin in pip pip3 pip3.10; do
+                if command -v "$pipbin" >/dev/null 2>&1; then
+                  echo "-- $pipbin -> $(command -v "$pipbin")"
+                  "$pipbin" --version || true
+                else
+                  echo "-- $pipbin not found"
+                fi
+              done
+              if command -v conda >/dev/null 2>&1; then
+                echo "-- conda -> $(command -v conda)"
+                conda --version || true
+                conda info --envs || true
+              else
+                echo "-- conda not found"
+              fi
+
+              section "Ascend / CANN"
+              env | grep -E '^ASCEND_|^CANN_|^LD_LIBRARY_PATH=|^PATH=' | sort || true
+              for p in /usr/local/Ascend /home/jenkins/Ascend /usr/local/Ascend/ascend-toolkit /home/jenkins/Ascend/ascend-toolkit /usr/local/Ascend/cann; do
+                if [ -e "$p" ]; then
+                  echo "exists: $p"
+                  ls -ld "$p" || true
+                else
+                  echo "missing: $p"
+                fi
+              done
+              command -v npu-smi >/dev/null 2>&1 && npu-smi info || echo "npu-smi not found"
+
+      JOB_presmoke_a2:
+        name: Probe_PreSmoke_A2
+        if: ${{ inputs.target == 'presmoke_a2' || inputs.target == 'all' }}
+        timeout-minutes: 15
+        runs-on: ['self-hosted', 'npu=2', 'smoke=204']
+        steps:
+          - name: probe_env
+            run: |
+              set -euo pipefail
+              section() {
+                echo "===================================================================="
+                echo "$1"
+                echo "===================================================================="
+              }
+              section "Trigger / runner context"
+              echo "ATOMGIT_EVENT_NAME=${ATOMGIT_EVENT_NAME:-<unset>}"
+              echo "ATOMGIT_WORKFLOW=${ATOMGIT_WORKFLOW:-<unset>}"
+              echo "ATOMGIT_REPOSITORY=${ATOMGIT_REPOSITORY:-<unset>}"
+              echo "ATOMGIT_REF=${ATOMGIT_REF:-<unset>}"
+              echo "ATOMGIT_SHA=${ATOMGIT_SHA:-<unset>}"
+              echo "ATOMGIT_RUNNER_OS=${ATOMGIT_RUNNER_OS:-<unset>}"
+              echo "ATOMGIT_RUNNER_ARCH=${ATOMGIT_RUNNER_ARCH:-<unset>}"
+              echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE:-<unset>}"
+              echo "probe_target=${{ inputs.target }}"
+              echo "job_name=Probe_PreSmoke_A2"
+              echo "runs_on=self-hosted,npu=2,smoke=204"
+
+              section "Machine"
+              echo "whoami=$(whoami 2>/dev/null || true)"
+              echo "pwd=$(pwd)"
+              echo "date=$(date -Is 2>/dev/null || date)"
+              echo "hostname=$(hostname 2>/dev/null || true)"
+              uname -a || true
+              if [ -f /etc/os-release ]; then
+                cat /etc/os-release
+              else
+                echo "/etc/os-release not found"
+              fi
+              echo "nproc=$(nproc 2>/dev/null || true)"
+              (command -v free >/dev/null && free -h) || true
+              (command -v lscpu >/dev/null && lscpu | head -n 20) || true
+
+              section "Python"
+              for bin in python python3 python3.10 python3.11 python3.12; do
+                if command -v "$bin" >/dev/null 2>&1; then
+                  echo "-- $bin -> $(command -v "$bin")"
+                  "$bin" --version || true
+                else
+                  echo "-- $bin not found"
+                fi
+              done
+              for pipbin in pip pip3 pip3.10; do
+                if command -v "$pipbin" >/dev/null 2>&1; then
+                  echo "-- $pipbin -> $(command -v "$pipbin")"
+                  "$pipbin" --version || true
+                else
+                  echo "-- $pipbin not found"
+                fi
+              done
+              if command -v conda >/dev/null 2>&1; then
+                echo "-- conda -> $(command -v conda)"
+                conda --version || true
+                conda info --envs || true
+              else
+                echo "-- conda not found"
+              fi
+
+              section "Ascend / CANN"
+              env | grep -E '^ASCEND_|^CANN_|^LD_LIBRARY_PATH=|^PATH=' | sort || true
+              for p in /usr/local/Ascend /home/jenkins/Ascend /usr/local/Ascend/ascend-toolkit /home/jenkins/Ascend/ascend-toolkit /usr/local/Ascend/cann; do
+                if [ -e "$p" ]; then
+                  echo "exists: $p"
+                  ls -ld "$p" || true
+                else
+                  echo "missing: $p"
+                fi
+              done
+              command -v npu-smi >/dev/null 2>&1 && npu-smi info || echo "npu-smi not found"
