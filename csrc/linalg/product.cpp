@@ -37,45 +37,62 @@ NPUArray Matmul(const NPUArray& x1, const NPUArray& x2) {
               detail::FormatShape(x2.shape), AclDtypeName(x1.aclDtype));
     size_t x1_ndim = x1.shape.size();
     size_t x2_ndim = x2.shape.size();
-
-    // 1-D × 1-D: inner product → scalar
-    if (x1_ndim == 1 && x2_ndim == 1) {
-        NPUArray out({}, x1.aclDtype);
-        uint64_t ws = 0;
-        aclOpExecutor* exec = nullptr;
-        auto err = aclnnDotGetWorkspaceSize(x1.tensorPtr, x2.tensorPtr, out.tensorPtr, &ws, &exec);
-        ACLNN_CHECK(err, "aclnnDotGetWorkspaceSize");
-        AclWorkspace workspace(ws);
-        err = aclnnDot(workspace.get(), ws, exec, nullptr);
-        ACLNN_CHECK(err, "aclnnDot");
-        err = aclrtSynchronizeDevice();
-        ACL_RT_CHECK(err, "aclrtSynchronizeDevice");
-        LOG_INFO("aclnnMatmul completed");
-        return out;
+    if (x1_ndim == 0 || x2_ndim == 0) {
+        throw std::invalid_argument("[product.cpp](Matmul) scalar operands are not allowed, use '*' instead");
     }
-
-    // 2-D+ matrix multiplication via aclnnMatmul
-    size_t x1_batch = x1_ndim - 2;
-    size_t x2_batch = x2_ndim - 2;
-    size_t out_batch = std::max(x1_batch, x2_batch);
-
+    bool x1_is_vec = (x1_ndim == 1);
+    bool x2_is_vec = (x2_ndim == 1);
+    // Effective shapes after promoting 1-D operands to matrices
+    std::vector<int64_t> e1;
+    std::vector<int64_t> e2;
+    if (x1_is_vec) {
+        e1 = {1, x1.shape[0]};
+    } else {
+        e1.assign(x1.shape.begin(), x1.shape.end());
+    }
+    if (x2_is_vec) {
+        e2 = {x2.shape[0], 1};
+    } else {
+        e2.assign(x2.shape.begin(), x2.shape.end());
+    }
     std::vector<int64_t> out_shape;
-    for (size_t i = 0; i < out_batch; i++) {
-        ssize_t x1_pos = static_cast<ssize_t>(i) - static_cast<ssize_t>(out_batch - x1_batch);
-        ssize_t x2_pos = static_cast<ssize_t>(i) - static_cast<ssize_t>(out_batch - x2_batch);
-        int64_t d1 = (x1_pos >= 0 && x1_pos < static_cast<ssize_t>(x1_batch)) ? x1.shape[x1_pos] : 1;
-        int64_t d2 = (x2_pos >= 0 && x2_pos < static_cast<ssize_t>(x2_batch)) ? x2.shape[x2_pos] : 1;
-        out_shape.push_back(std::max(d1, d2));
+    if (x1_is_vec && x2_is_vec) {
+        // (K,) @ (K,) -> scalar
+    } else if (x1_is_vec) {
+        // (K,) @ (..., K, N) -> (..., N)
+        out_shape.assign(e2.begin(), e2.end() - 2);
+        out_shape.push_back(e2.back());
+    } else if (x2_is_vec) {
+        // (..., M, K) @ (K,) -> (..., M)
+        out_shape.assign(e1.begin(), e1.end() - 1);
+    } else {
+        // batch dims broadcast right-aligned; the trailing M/N axes never broadcast
+        size_t batch1 = e1.size() - 2;
+        size_t batch2 = e2.size() - 2;
+        size_t out_batch = std::max(batch1, batch2);
+        for (size_t i = 0; i < out_batch; i++) {
+            ssize_t x1_pos = static_cast<ssize_t>(i) - static_cast<ssize_t>(out_batch - batch1);
+            ssize_t x2_pos = static_cast<ssize_t>(i) - static_cast<ssize_t>(out_batch - batch2);
+            int64_t d1 = (x1_pos >= 0 && x1_pos < static_cast<ssize_t>(batch1)) ? e1[x1_pos] : 1;
+            int64_t d2 = (x2_pos >= 0 && x2_pos < static_cast<ssize_t>(batch2)) ? e2[x2_pos] : 1;
+            if (d1 != d2 && d1 != 1 && d2 != 1) {
+                throw std::invalid_argument(
+                    "[product.cpp](Matmul) operands could not be broadcast together with shapes " +
+                    detail::FormatShape(x1.shape) + " " + detail::FormatShape(x2.shape));
+            }
+            out_shape.push_back(std::max(d1, d2));
+        }
+        out_shape.push_back(e1[e1.size() - 2]); // M
+        out_shape.push_back(e2.back());         // N
     }
-    out_shape.push_back(x1.shape[x1_ndim - 2]); // M
-    out_shape.push_back(x2.shape[x2_ndim - 1]); // N
-
     auto result = NPUArray(out_shape, x1.aclDtype);
-    int8_t use_fp16 = 2;
+
+    int8_t cubeMathType = (x1.aclDtype == ACL_FLOAT && e1.back() > 2048) ? 4 : 0;
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor;
     auto error =
-        aclnnMatmulGetWorkspaceSize(x1.tensorPtr, x2.tensorPtr, result.tensorPtr, use_fp16, &workspaceSize, &executor);
+        aclnnMatmulGetWorkspaceSize(x1.tensorPtr, x2.tensorPtr, result.tensorPtr, cubeMathType, &workspaceSize,
+                                    &executor);
     ACLNN_CHECK(error, "aclnnMatmulGetWorkspaceSize");
     AclWorkspace workspace(workspaceSize);
     error = aclnnMatmul(workspace.get(), workspaceSize, executor, nullptr);
