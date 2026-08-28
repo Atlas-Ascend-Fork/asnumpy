@@ -33,6 +33,12 @@ py::object Linalg_Qr(const NPUArray& a, const std::string& mode) {
     LOG_DEBUG("aclnnLinalgQr start: input_shape={}, aclDtype={}, mode={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype), mode);
     int size = a.shape.size();
+    // Guard before indexing shape[size - 2]: a scalar or 1-D input makes the
+    // index negative and underflows once converted to an unsigned subscript.
+    if (size < 2) {
+        throw std::runtime_error(fmt::format(
+            "[decompositions.cpp](qr) requires an input with at least 2 dimensions, but got {}", size));
+    }
     int64_t m = a.shape[size - 2];
     int64_t n = a.shape.back();
     int64_t k = m < n ? m : n;
