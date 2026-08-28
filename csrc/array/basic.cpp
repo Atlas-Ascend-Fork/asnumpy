@@ -282,14 +282,6 @@ NPUArray Linspace(const py::object& start, const py::object& end, const py::obje
         final_dtype = py::dtype::of<double>();
     }
 
-    try {
-        if (final_dtype.is(py::dtype::of<int64_t>())) {
-            final_dtype = py::dtype::of<int32_t>();
-        }
-    } catch (...) {
-        // ignore
-    }
-
     std::vector<int64_t> out_shape = {steps_val};
     NPUArray out(out_shape, final_dtype);
 
