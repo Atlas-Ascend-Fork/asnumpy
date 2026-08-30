@@ -282,75 +282,52 @@ NPUArray Radians(const NPUArray& x) {
     void* scalar_factor_ptr = nullptr;
 
     // declare resources
-    aclrtStream stream = nullptr;
     uint64_t workspace_size = 0;
     aclOpExecutor* executor = nullptr;
-    aclTensorList* input_list = nullptr;  // input tensor list
-    aclTensorList* output_list = nullptr; // output tensor list
 
-    try {
-        // get device pointer of scalar tensor
-        auto error = aclGetRawTensorAddr(scalar_factor.tensorPtr, &scalar_factor_ptr);
-        ACL_RT_CHECK(error, "aclGetRawTensorAddr");
+    // get device pointer of scalar tensor
+    auto error = aclGetRawTensorAddr(scalar_factor.tensorPtr, &scalar_factor_ptr);
+    ACL_RT_CHECK(error, "aclGetRawTensorAddr");
 
-        // copy conversion factor to device (adapt by data type)
-        if (x.aclDtype == ACL_FLOAT) {
-            float factor = static_cast<float>(rad_factor);
-            error = aclrtMemcpy(scalar_factor_ptr, sizeof(float), &factor, sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE);
-            ACL_RT_CHECK(error, "aclrtMemcpy");
-        } else if (x.aclDtype == ACL_DOUBLE) {
-            error =
-                aclrtMemcpy(scalar_factor_ptr, sizeof(double), &rad_factor, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
-            ACL_RT_CHECK(error, "aclrtMemcpy");
-        } else if (x.aclDtype == ACL_FLOAT16) {
-            float factor_float = static_cast<float>(rad_factor);
-            uint32_t float_bits;
-            std::memcpy(&float_bits, &factor_float, sizeof(float_bits));
-            uint16_t fp16_bits =
-                static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
-                                      ((float_bits >> 13) & 0x03FFU));
-            error = aclrtMemcpy(scalar_factor_ptr, sizeof(uint16_t), &fp16_bits, sizeof(uint16_t),
-                                ACL_MEMCPY_HOST_TO_DEVICE);
-            ACL_RT_CHECK(error, "aclrtMemcpy");
-        }
-
-        // create execution stream
-        error = aclrtCreateStream(&stream);
-        ACL_RT_CHECK(error, "aclrtCreateStream");
-
-        // key fix: wrap single tensor as tensor list (matching interface parameter requirements)
-        aclTensor* input_tensors[] = {x.tensorPtr};
-        input_list = aclCreateTensorList(input_tensors, 1);
-
-        aclTensor* output_tensors[] = {result.tensorPtr};
-        output_list = aclCreateTensorList(output_tensors, 1);
-
-        // get workspace size
-        error = aclnnForeachMulScalarGetWorkspaceSize(input_list, scalar_factor.tensorPtr, output_list, &workspace_size,
-                                                      &executor);
-        ACLNN_CHECK(error, "aclnnForeachMulScalarGetWorkspaceSize");
-
-        // allocate workspace
-        AclWorkspace workspace(workspace_size);
-
-        // execute scalar multiplication
-        error = aclnnForeachMulScalar(workspace.get(), workspace_size, executor, stream);
-        ACLNN_CHECK(error, "aclnnForeachMulScalar");
-
-        error = aclrtSynchronizeStream(stream);
-        ACL_RT_CHECK(error, "aclrtSynchronizeStream");
-    } catch (const std::exception& e) {
-        if (input_list != nullptr) {
-            aclDestroyTensorList(input_list);
-        }
-        if (output_list != nullptr) {
-            aclDestroyTensorList(output_list);
-        }
-        if (stream != nullptr) {
-            aclrtDestroyStream(stream);
-        }
-        throw;
+    // copy conversion factor to device (adapt by data type)
+    if (x.aclDtype == ACL_FLOAT) {
+        float factor = static_cast<float>(rad_factor);
+        error = aclrtMemcpy(scalar_factor_ptr, sizeof(float), &factor, sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "aclrtMemcpy");
+    } else if (x.aclDtype == ACL_DOUBLE) {
+        error = aclrtMemcpy(scalar_factor_ptr, sizeof(double), &rad_factor, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "aclrtMemcpy");
+    } else if (x.aclDtype == ACL_FLOAT16) {
+        float factor_float = static_cast<float>(rad_factor);
+        uint32_t float_bits;
+        std::memcpy(&float_bits, &factor_float, sizeof(float_bits));
+        uint16_t fp16_bits = static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
+                                                   ((float_bits >> 13) & 0x03FFU));
+        error = aclrtMemcpy(scalar_factor_ptr, sizeof(uint16_t), &fp16_bits, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "aclrtMemcpy");
     }
+
+    // wrap single tensor as tensor list (matching interface parameter requirements)
+    aclTensor* input_tensors[] = {x.tensorPtr};
+    aclTensorList* input_list = aclCreateTensorList(input_tensors, 1);
+
+    aclTensor* output_tensors[] = {result.tensorPtr};
+    aclTensorList* output_list = aclCreateTensorList(output_tensors, 1);
+
+    // get workspace size
+    error = aclnnForeachMulScalarGetWorkspaceSize(input_list, scalar_factor.tensorPtr, output_list, &workspace_size,
+                                                  &executor);
+    ACLNN_CHECK(error, "aclnnForeachMulScalarGetWorkspaceSize");
+
+    // allocate workspace
+    AclWorkspace workspace(workspace_size);
+
+    // execute scalar multiplication
+    error = aclnnForeachMulScalar(workspace.get(), workspace_size, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnForeachMulScalar");
+
+    error = aclrtSynchronizeDevice();
+    ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
 
     LOG_INFO("aclnnForeachMulScalar completed");
 
