@@ -92,13 +92,7 @@ NPUArray Around(const NPUArray& x, int decimals, std::optional<py::dtype> dtype)
 
     AclWorkspace workspace(workspaceSize);
 
-    aclrtStream stream = nullptr;
-    error = aclrtCreateStream(&stream);
-    if (error != ACL_SUCCESS || stream == nullptr) {
-        throw std::runtime_error("[rounding.cpp](around) Failed to get current stream");
-    }
-
-    error = aclnnRoundDecimals(workspace.get(), workspaceSize, executor, stream);
+    error = aclnnRoundDecimals(workspace.get(), workspaceSize, executor, nullptr);
     ACLNN_CHECK(error, "aclnnRoundDecimals");
 
     error = aclrtSynchronizeDevice();
