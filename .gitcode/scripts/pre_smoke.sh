@@ -14,25 +14,8 @@ set -Eeuo pipefail
 echo "start run test case, please wait ..."
 cd ${WORKSPACE}
 
-# ascendhub/cann images run as root and may not ship sudo; the legacy mindspore smoke
-# image needed it.
-SUDO="sudo"
-if [ "$(id -u)" = "0" ] && ! command -v sudo >/dev/null 2>&1; then
-    SUDO=""
-fi
-
 export ASCEND_GLOBAL_LOG_LEVEL=2
 export ASCEND_SLOG_PRINT_TO_STDOUT=0
-
-# CANN environment: baked into the ascendhub/cann image under ascend-toolkit; the
-# legacy mindspore smoke image kept it under /usr/local/Ascend/cann.
-if [ -f /usr/local/Ascend/ascend-toolkit/latest/bin/setenv.bash ]; then
-    source /usr/local/Ascend/ascend-toolkit/latest/bin/setenv.bash || true
-elif [ -f /usr/local/Ascend/ascend-toolkit/set_env.sh ]; then
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh || true
-elif [ -f /usr/local/Ascend/cann/set_env.sh ]; then
-    source /usr/local/Ascend/cann/set_env.sh || true
-fi
 
 log() {
   local dt
@@ -46,14 +29,11 @@ log "init test case, please wait ..."
 
 export PIP_INDEX_URL="${PIP_INDEX_URL:-https://repo.huaweicloud.com/repository/pypi/simple}"
 
-# The smoke stage only pip-installs the wheel produced by the compile stage and runs
-# the test suite against it — no source rebuild, so no build toolchain is needed here.
-${SUDO} apt-get update
-${SUDO} apt-get install -y wget unzip
+apt-get update
+apt-get install -y wget unzip
 python3 -m pip install --upgrade pip
 python3 -m pip install pytest pytest-xdist
 
-# package_name is the stable OBS object name chosen by the compile stage (one per arch).
 package_name="${package_name:-cann-asnumpy-linux-arm.whl}"
 wget "https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/${package_name}"
 ls
