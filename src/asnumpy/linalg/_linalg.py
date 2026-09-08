@@ -108,11 +108,22 @@ def norm(
     return _to_asnumpy_array(result)
 
 
+def _check_square_matrix(a: ArrayLike) -> None:
+    # Read device-array metadata without copying its contents to the host.
+    shape = a.shape if hasattr(a, "shape") else np.asarray(a).shape
+    if len(shape) < 2:
+        raise np.linalg.LinAlgError("Input must have at least two dimensions")
+    if shape[-2] != shape[-1]:
+        raise np.linalg.LinAlgError("Last two dimensions must be square")
+
+
 def det(a: ArrayLike) -> ndarray:
+    _check_square_matrix(a)
     return ndarray(_det(a))
 
 
 def slogdet(a: ArrayLike) -> tuple:
+    _check_square_matrix(a)
     # CANN's double-precision slogdet may produce different results from NumPy
     # for inputs containing nan/inf. Fall back to NumPy for such cases.
     host = a.to_numpy() if hasattr(a, "to_numpy") else np.asarray(a)
@@ -125,4 +136,5 @@ def slogdet(a: ArrayLike) -> tuple:
 
 
 def inv(a: ArrayLike) -> ndarray:
+    _check_square_matrix(a)
     return ndarray(_inv(a))

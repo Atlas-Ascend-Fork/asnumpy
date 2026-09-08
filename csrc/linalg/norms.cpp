@@ -36,6 +36,17 @@ using namespace asnumpy;
 
 namespace {
 
+// Validate before indexing or removing the two matrix dimensions.
+void CheckSquareMatrix(const NPUArray& a) {
+    const auto ndim = a.shape.size();
+    if (ndim < 2) {
+        throw std::invalid_argument("Input must have at least two dimensions");
+    }
+    if (a.shape[ndim - 2] != a.shape[ndim - 1]) {
+        throw std::invalid_argument("Last two dimensions must be square");
+    }
+}
+
 // Cast to a target dtype. Thin alias kept so the call sites below read unchanged; the primitive
 // itself now lives in asnumpy/utils/cast.hpp and is shared with the promotion layer and astype.
 NPUArray CastToDtype(const NPUArray& input, aclDataType targetDtype) { return asnumpy::CastTo(input, targetDtype); }
@@ -73,6 +84,7 @@ NPUArray Linalg_Norm(const NPUArray& a, double ord, const std::vector<int64_t>& 
 }
 
 NPUArray Linalg_Det(const NPUArray& a) {
+    CheckSquareMatrix(a);
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
     std::vector<int64_t> shape = a.shape;
@@ -120,6 +132,7 @@ NPUArray Linalg_Det(const NPUArray& a) {
 }
 
 std::pair<NPUArray, NPUArray> Linalg_Slogdet(const NPUArray& a) {
+    CheckSquareMatrix(a);
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
     auto shape = a.shape;
