@@ -87,6 +87,14 @@ NPUArray Matmul(const NPUArray& x1, const NPUArray& x2) {
 }
 
 NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
+    // Guard before any operands[0] / operands[1] access. The Python binding collects
+    // operands through py::args, so einsum("ab") or einsum("ab", a) reaches here with
+    // fewer than two entries; the LOG_DEBUG arguments below are evaluated eagerly and
+    // would read out of bounds.
+    if (operands.size() < 2) {
+        throw std::runtime_error(fmt::format(
+            "[product.cpp](einsum) requires 2 operands, but {} were given", operands.size()));
+    }
     LOG_DEBUG("aclnnEinsum start: subscripts={}, x1_shape={}, x2_shape={}, aclDtype={}", subscripts,
               detail::FormatShape(operands[0].shape), detail::FormatShape(operands[1].shape),
               AclDtypeName(operands[0].aclDtype));
