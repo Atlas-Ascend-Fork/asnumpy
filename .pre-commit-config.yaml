@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,12 +17,15 @@
 # Install locally:
 #   python -m pip install pre-commit
 #   pre-commit install
+#
 # Run on a PR-sized change:
 #   pre-commit run --from-ref origin/master --to-ref HEAD --show-diff-on-failure
 
 minimum_pre_commit_version: 4.0.0
 default_stages: [pre-commit]
 fail_fast: false
+
+# Do not run project checks on vendored third-party sources.
 exclude: ^third_party/
 
 repos:
@@ -49,6 +52,18 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
       - id: debug-statements
+
+  # Open source compliance check.
+  - repo: local
+    hooks:
+      - id: oat-check
+        name: OAT Compliance Check
+        entry: bash scripts/oat_check.sh
+        language: system
+        pass_filenames: true
+        types: [file]
+        stages: [pre-commit]
+        verbose: true
 
   # Python linting and formatting. Rules are defined in pyproject.toml.
   - repo: https://gitcode.com/gh_mirrors/ru/ruff-pre-commit
