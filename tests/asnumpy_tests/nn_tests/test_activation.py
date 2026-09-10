@@ -18,6 +18,8 @@
 
 包含：
 1. Softmax 激活函数
+2. Gelu 激活函数（tanh 近似）
+3. Relu 激活函数
 
 优化维度：
 - 数值稳定性（极端值输入）
@@ -53,6 +55,23 @@ def _numpy_softmax(x, axis=-1):
 
 # 将 softmax 注册到 numpy 模块上，以便 numpy_asnumpy_allclose 装饰器可以使用
 numpy.softmax = _numpy_softmax
+
+
+def _numpy_gelu(x):
+    """NumPy 参考实现的 GELU（tanh 近似，与 CANN aclnnGelu 实现一致）"""
+    x = numpy.asarray(x)
+    # sqrt(2/pi) 用 Python float 常数，避免 0-d float64 数组把结果提升为 float64
+    return 0.5 * x * (1.0 + numpy.tanh(0.7978845608028654 * (x + 0.044715 * numpy.power(x, 3))))
+
+
+def _numpy_relu(x):
+    """NumPy 参考实现的 ReLU"""
+    return numpy.maximum(numpy.asarray(x), 0)
+
+
+# 将 gelu/relu 注册到 numpy 模块上，以便 numpy_asnumpy_allclose 装饰器可以使用
+numpy.gelu = _numpy_gelu
+numpy.relu = _numpy_relu
 
 
 # ==========================================================================
@@ -371,3 +390,78 @@ def test_softmax_empty(xp):
     """测试 softmax: 空数组"""
     a = _create_array(xp, [], numpy.float32)
     return xp.softmax(a)
+
+
+# ==========================================================================
+# 7. Gelu 激活函数 (Gelu)
+# ==========================================================================
+
+
+# ---------- 7.1 基础功能 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-6)
+def test_gelu_basic(xp, dtype):
+    """测试 gelu 基本功能（tanh 近似参考实现）"""
+    data = [-2.0, -0.5, 0.0, 0.5, 2.0]
+    a = _create_array(xp, data, dtype)
+    return xp.gelu(a)
+
+
+# ---------- 7.2 多维输入 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-6)
+def test_gelu_2d(xp, dtype):
+    """测试二维数组 gelu"""
+    data = [[-1.0, 0.0, 1.0], [-3.0, 2.0, 0.5]]
+    a = _create_array(xp, data, dtype)
+    return xp.gelu(a)
+
+
+# ---------- 7.3 限制性测试 ----------
+@pytest.mark.xfail(reason="[FIXABLE] aclnnGelu unsupported dtypes (float64/int/bool)", strict=True)
+@testing.for_dtypes([numpy.float64, numpy.int32])
+def test_gelu_unsupported_xfail(xp, dtype):
+    a = _create_array(xp, [-1.0, 1.0], dtype)
+    return xp.gelu(a)
+
+
+# ==========================================================================
+# 8. Relu 激活函数 (Relu)
+# ==========================================================================
+
+
+# ---------- 8.1 基础功能 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5)
+def test_relu_basic(xp, dtype):
+    """测试 relu 基本功能：负值置零、正值保留"""
+    data = [-2.0, -0.5, 0.0, 0.5, 2.0]
+    a = _create_array(xp, data, dtype)
+    return xp.relu(a)
+
+
+@testing.for_dtypes([numpy.int32, numpy.int64])
+@testing.numpy_asnumpy_array_equal()
+def test_relu_int(xp, dtype):
+    """测试整数 relu，结果保持整数 dtype"""
+    data = [-2, 0, 3]
+    a = _create_array(xp, data, dtype)
+    return xp.relu(a)
+
+
+# ---------- 8.2 多维输入 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5)
+def test_relu_2d(xp, dtype):
+    """测试二维数组 relu"""
+    data = [[-1.0, 0.0, 1.0], [-3.0, 2.0, 0.5]]
+    a = _create_array(xp, data, dtype)
+    return xp.relu(a)
+
+
+# ---------- 8.3 限制性测试 ----------
+@pytest.mark.xfail(reason="[FIXABLE] aclnnRelu unsupported dtypes (float64/bool)", strict=True)
+@testing.for_dtypes([numpy.float64])
+def test_relu_float64_xfail(xp, dtype):
+    a = _create_array(xp, [-1.0, 1.0], dtype)
+    return xp.relu(a)
