@@ -177,3 +177,38 @@ def test_nan_to_num_basic(xp, dtype):
     # 获取 float32 的极大极小值
     finfo = numpy.finfo(numpy.float32)
     return xp.nan_to_num(a, nan=0.0, posinf=finfo.max, neginf=finfo.min)
+
+
+# ========== 5. 一元恒等与开方 (Positive, Sqrt) ==========
+
+
+@testing.for_dtypes([numpy.float32, numpy.int32])
+@testing.numpy_asnumpy_allclose()
+def test_positive_basic(xp, dtype):
+    """测试 positive(x) - 逐元素恒等（+x），保持原 dtype"""
+    a = _create_array(xp, [-1.5, 0.0, 2.5], dtype)
+    return xp.positive(a)
+
+
+@testing.for_dtypes([numpy.float32, numpy.float64])
+@testing.numpy_asnumpy_allclose(atol=1e-6, rtol=1e-6)
+def test_sqrt_basic(xp, dtype):
+    """测试 sqrt(x) - 逐元素开方"""
+    a = _create_array(xp, [0.0, 1.0, 4.0, 2.5], dtype)
+    return xp.sqrt(a)
+
+
+@testing.for_dtypes([numpy.int32, numpy.int64])
+@testing.numpy_asnumpy_allclose(atol=1e-6, rtol=1e-6)
+def test_sqrt_int_promotion(xp, dtype):
+    """整数输入两侧均提升为 float64"""
+    a = _create_array(xp, [0, 1, 4, 10], dtype)
+    return xp.sqrt(a)
+
+
+@pytest.mark.xfail(reason="[FIXABLE] Sqrt int8 输出 float32，NumPy 提升为 float16", strict=True)
+@testing.for_dtypes([numpy.int8])
+@testing.numpy_asnumpy_allclose(rtol=1e-3, atol=1e-3)
+def test_sqrt_int8_xfail(xp, dtype):
+    a = _create_array(xp, [1, 4], dtype)
+    return xp.sqrt(a)
