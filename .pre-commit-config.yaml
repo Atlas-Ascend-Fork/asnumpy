@@ -1,48 +1,107 @@
----
-# pre-commit configuration for asnumpy
-# Install: pip install pre-commit && pre-commit install
-# Run manually: pre-commit run --all-files
+# *****************************************************************************
+# Copyright (c) 2026 AsNumpy Contributors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *****************************************************************************
+
+# Install locally:
+#   python -m pip install pre-commit
+#   pre-commit install
+#
+# Run on a PR-sized change:
+#   pre-commit run --from-ref origin/master --to-ref HEAD --show-diff-on-failure
+
+minimum_pre_commit_version: 4.0.0
+default_stages: [pre-commit]
+fail_fast: false
+
+# Do not run project checks on vendored third-party sources.
+exclude: ^third_party/
 
 repos:
-  # Python: ruff (linter)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.0
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        files: ^(src|tests)/.*\.py$
-
-  # Python: ruff (formatter)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.0
-    hooks:
-      - id: ruff-format
-        files: ^(src|tests)/.*\.py$
-
-  # Python: mypy (type checker)
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
-    hooks:
-      - id: mypy
-        args: [--ignore-missing-imports, src/]
-        pass_filenames: false
-        files: ^src/
-
-  # C++: clang-format
-  - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v19.1.0
-    hooks:
-      - id: clang-format
-        types_or: [c++, c]
-        args: [--style=file]
-
-  # General: trailing whitespace, file endings
-  - repo: https://github.com/pre-commit/pre-commit-hooks
+  # Repository hygiene and basic security checks.
+  - repo: https://gitcode.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      - id: check-symlinks
+      - id: destroyed-symlinks
       - id: trailing-whitespace
         exclude: \.patch$
       - id: end-of-file-fixer
         exclude: \.patch$
       - id: check-yaml
+        args: [--allow-multiple-documents]
       - id: check-toml
+      - id: check-json
+      - id: check-ast
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: debug-statements
+
+  # Open source compliance check.
+  - repo: local
+    hooks:
+      - id: oat-check
+        name: OAT Compliance Check
+        entry: bash scripts/oat_check.sh
+        language: system
+        pass_filenames: true
+        types: [file]
+        stages: [pre-commit]
+        verbose: true
+
+  # Python linting and formatting. Rules are defined in pyproject.toml.
+  - repo: https://gitcode.com/gh_mirrors/ru/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(src|tests|benchmarks|examples)/.*\.py$
+      - id: ruff-format
+        files: ^(src|tests|benchmarks|examples)/.*\.py$
+
+  # C and C++ formatting. The style is defined in .clang-format.
+  - repo: https://gitcode.com/pre-commit-clang/mirrors-clang-format
+    rev: v19.1.6
+    hooks:
+      - id: clang-format
+        args: [--style=file]
+        files: ^(csrc|include|bindings)/.*\.(c|h|cpp|hpp|cc|hh|cxx|hxx)$
+
+  # Documentation and configuration spelling. Project terms are allowlisted.
+  - repo: https://gitcode.com/gh_mirrors/co/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args: [-L, "CANN,cann,AsNumpy,asnumpy"]
+        files: ^(README.*|docs/|changes/|\.gitcode/).*
+
+  # Keep type checking available while the existing type-error baseline is
+  # cleaned up. This hook is intentionally manual until `mypy src/` is clean.
+  # Installing it from the configured Python index avoids a GitHub dependency.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        additional_dependencies: [mypy==1.19.0]
+        args: [src/]
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages: [manual]
