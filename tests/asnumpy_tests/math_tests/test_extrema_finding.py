@@ -16,7 +16,10 @@
 
 import numpy
 
+import asnumpy as ap
+from asnumpy import nanmin as top_level_nanmin
 from asnumpy import testing
+from asnumpy.math import nanmin as math_nanmin
 
 
 @testing.for_all_dtypes(no_complex=True)
@@ -85,3 +88,53 @@ def test_min_dim(xp, dtype):
     """测试 min(a, axis, keepdims) - 数组沿特定维度的最大值"""
     a = testing.shaped_random((3, 4, 5), dtype=dtype, xp=xp, seed=42)
     return xp.min(a, axis=1, keepdims=True)
+
+
+def _make_nan_array(shape, dtype, xp, seed=42):
+    """创建测试数组，浮点类型时注入 NaN。"""
+    numpy.random.seed(seed)
+    arr = numpy.random.random(shape).astype(dtype)
+    if numpy.issubdtype(dtype, numpy.floating):
+        arr = arr.copy()
+        arr.flat[0] = numpy.nan
+        arr.flat[-1] = numpy.nan
+    if xp is numpy:
+        return arr
+    return xp.ndarray.from_numpy(arr)
+
+
+def test_nanmin_exports():
+    """nanmin is importable from both public namespaces and listed in __all__."""
+    assert "nanmin" in ap.__all__
+    assert ap.nanmin is top_level_nanmin
+    assert top_level_nanmin is math_nanmin
+
+
+def test_nanmax():
+    """测试 nanmax(a) 标量归约 - 忽略 float32 输入中的 NaN。"""
+    a = numpy.array([1.0, numpy.nan, 3.0], dtype=numpy.float32)
+    result = ap.nanmax(ap.ndarray.from_numpy(a))
+    assert numpy.isclose(result, numpy.nanmax(a), rtol=1e-5)
+
+
+@testing.for_float_dtypes(exclude=[numpy.float64])
+@testing.numpy_asnumpy_allclose(rtol=1e-5)
+def test_nanmax_dim(xp, dtype):
+    """测试 nanmax(a, axis, keepdims) - 数组沿特定维度的最大值（忽略 NaN）"""
+    a = _make_nan_array((3, 4, 5), dtype, xp, seed=42)
+    return xp.nanmax(a, axis=1, keepdims=True)
+
+
+def test_nanmin():
+    """测试 nanmin(a) 标量归约 - 忽略 float32 输入中的 NaN。"""
+    a = numpy.array([1.0, numpy.nan, -2.0], dtype=numpy.float32)
+    result = ap.nanmin(ap.ndarray.from_numpy(a))
+    assert numpy.isclose(result, numpy.nanmin(a), rtol=1e-5)
+
+
+@testing.for_float_dtypes(exclude=[numpy.float64])
+@testing.numpy_asnumpy_allclose(rtol=1e-5)
+def test_nanmin_dim(xp, dtype):
+    """测试 nanmin(a, axis, keepdims) - 数组沿特定维度的最小值（忽略 NaN）"""
+    a = _make_nan_array((3, 4, 5), dtype, xp, seed=42)
+    return xp.nanmin(a, axis=1, keepdims=True)
