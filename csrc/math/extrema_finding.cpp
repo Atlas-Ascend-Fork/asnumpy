@@ -383,7 +383,7 @@ NPUArray Nanmin(const NPUArray& a, int64_t axis, bool keepdims) {
     uint64_t workspaceSize1 = 0;
     aclOpExecutor* executor1;
     auto error1 = aclnnNanToNumGetWorkspaceSize(
-        a.tensorPtr, -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(),
+        a.tensorPtr, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(),
         -std::numeric_limits<float>::infinity(), temp.tensorPtr, &workspaceSize1, &executor1);
     ACLNN_CHECK(error1, "aclnnNanToNumGetWorkspaceSize");
 
@@ -422,7 +422,7 @@ double Nanmin(const NPUArray& a) {
     uint64_t workspaceSize1 = 0;
     aclOpExecutor* executor1;
     auto error1 = aclnnNanToNumGetWorkspaceSize(
-        a.tensorPtr, -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(),
+        a.tensorPtr, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(),
         -std::numeric_limits<float>::infinity(), temp.tensorPtr, &workspaceSize1, &executor1);
     ACLNN_CHECK(error1, "aclnnNanToNumGetWorkspaceSize");
 
