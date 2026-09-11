@@ -208,6 +208,9 @@ void bind_extrema_finding(py::module_& math) {
     math.def("nanmax", py::overload_cast<const NPUArray&, int64_t, bool>(&Nanmax), py::arg("a"), py::arg("axis"),
              py::arg("keepdims"));
     math.def("nanmax", py::overload_cast<const NPUArray&>(&Nanmax), py::arg("a"));
+    math.def("nanmin", py::overload_cast<const NPUArray&, int64_t, bool>(&Nanmin), py::arg("a"), py::arg("axis"),
+             py::arg("keepdims"));
+    math.def("nanmin", py::overload_cast<const NPUArray&>(&Nanmin), py::arg("a"));
     math.def("min", py::overload_cast<const NPUArray&, int64_t, bool>(&Min), py::arg("a"), py::arg("axis"),
              py::arg("keepdims"));
     math.def("min", py::overload_cast<const NPUArray&>(&Min), py::arg("a"));
