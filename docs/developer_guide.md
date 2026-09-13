@@ -26,8 +26,8 @@ Asnumpy 是一个基于华为昇腾 NPU 的数值计算库，提供与 NumPy 兼
 
 ```
 asnumpy/
-├── asnumpy/                 # Python 包
-│   ├── __init__.py         # 主包初始化
+├── src/asnumpy/            # Python 包
+│   ├── __init__.py         # 主包初始化（懒加载导出 _LAZY_MAPPING）
 │   ├── math.py             # 数学模块
 │   ├── linalg/             # 线性代数模块
 │   ├── random/             # 随机数模块
@@ -36,11 +36,12 @@ asnumpy/
 │   └── asnumpy/
 │       ├── math/           # 数学模块头文件
 │       └── ...
-├── src/                    # C++ 源文件
+├── csrc/                   # C++ 源文件
 │   ├── math/               # 数学模块实现
 │   └── ...
-├── python/                 # Pybind11 绑定
+├── bindings/python/        # Pybind11 绑定
 │   ├── bind_math.cpp       # 数学模块绑定
+│   ├── module.cpp          # _core 扩展模块入口
 │   └── ...
 ├── tests/                  # 测试文件
 │   └── asnumpy_tests/      # 测试用例
@@ -56,13 +57,13 @@ asnumpy/
 ```
 1. 添加函数声明 (include/)
    ↓
-2. 实现函数逻辑 (src/)
+2. 实现函数逻辑 (csrc/)
    ↓
-3. 添加 Python 绑定 (python/)
+3. 添加 Python 绑定 (bindings/python/)
    ↓
-4. 添加 Python 包装层 (asnumpy/math.py)
+4. 添加 Python 包装层 (src/asnumpy/math.py)
    ↓
-5. 导出到主命名空间 (asnumpy/__init__.py)
+5. 导出到主命名空间 (src/asnumpy/__init__.py)
    ↓
 6. 编写测试用例 (tests/)
    ↓
@@ -310,7 +311,7 @@ NPUArray Sinc(const NPUArray& x, std::optional<py::dtype> dtype = std::nullopt);
 
 在对应的源文件中实现函数逻辑：
 
-**文件位置**: `src/math/other_special_functions.cpp`
+**文件位置**: `csrc/math/other_special_functions.cpp`
 
 ```cpp
 NPUArray Sinc(const NPUArray& x, std::optional<py::dtype> dtype) {
@@ -419,7 +420,7 @@ if (error != ACL_SUCCESS) {
 
 在对应的绑定文件中添加函数绑定：
 
-**文件位置**: `python/bind_math.cpp`
+**文件位置**: `bindings/python/bind_math.cpp`
 
 ```cpp
 namespace asnumpy {
@@ -448,15 +449,15 @@ namespace asnumpy {
 
 在对应的 Python 模块中导入 C++ 函数，并添加 Python 包装层：
 
-**文件位置**: `asnumpy/math.py`
+**文件位置**: `src/asnumpy/math.py`
 
 首先，从编译好的 C++ 扩展导入函数：
 
 ```python
-from .lib.asnumpy_core.math import (
-    sin as _ap_sin,
-    cos as _ap_cos,
-    sinc as _ap_sinc,
+from ._core.math import (
+    sin as _sin,
+    cos as _cos,
+    sinc as _sinc,
     # ... 其他函数
 )
 from .utils import ndarray, _convert_dtype
@@ -465,28 +466,24 @@ from .utils import ndarray, _convert_dtype
 然后，为每个函数添加 Python 包装层：
 
 ```python
-def sinc(x: ndarray, dtype: Optional[np.dtype] = None) -> ndarray:
-    return ndarray(_ap_sinc(x, _convert_dtype(dtype)))
+def sinc(x: ArrayLike, dtype: DTypeLike = None) -> ndarray:
+    return ndarray(_sinc(x, _convert_dtype(dtype)))
 ```
 
 ### 6.2 导出到主命名空间
 
 在主包的 `__init__.py` 中添加函数：
 
-**文件位置**: `asnumpy/__init__.py`
+**文件位置**: `src/asnumpy/__init__.py`
 
 ```python
-from .math import (
-    sin,
-    sinc,
-    # ... 其他数学函数
-)
-
-__all__ = [
+# 普通 API 走懒加载：_LAZY_MAPPING 中加入映射
+_LAZY_MAPPING = {
+    "sinc": ".math",
     # ... 其他导出
-    "sin",
-    "sinc",
-]
+}
+
+# 需要立即初始化的接口（如 set_device）加入 _EAGER_EXPORTS
 ```
 
 ---
