@@ -18,6 +18,7 @@
 #include <asnumpy/utils/npu_array.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 #include <cstddef>
+#include <limits>
 
 /**
  * @brief Constructor that creates an NPUArray with specified shape and data type.
@@ -34,6 +35,9 @@ NPUArray::NPUArray(const std::vector<int64_t>& shape, py::dtype dtype) {
     this->dtype = dtype;
     this->aclDtype = GetACLDataType(dtype);
     tensorSize = GetShapeSize(shape);
+    if (this->tensorSize > std::numeric_limits<int64_t>::max() / GetDataTypeSize(this->aclDtype)) {
+        throw std::runtime_error("[npu_array.cpp](NPUArray) Tensor Byte Size Overflows int64_t!");
+    }
     auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
     this->devicePtr = nullptr;
     if (tensorByteSize > 0) {
@@ -66,6 +70,9 @@ NPUArray::NPUArray(const std::vector<int64_t>& shape, aclDataType acl_type) {
     this->shape = shape;
     this->aclDtype = acl_type;
     this->tensorSize = GetShapeSize(shape);
+    if (this->tensorSize > std::numeric_limits<int64_t>::max() / GetDataTypeSize(this->aclDtype)) {
+        throw std::runtime_error("[npu_array.cpp](NPUArray) Tensor Byte Size Overflows int64_t!");
+    }
     auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
 
     // use ACL type directly; do not create NumPy dtype
@@ -101,6 +108,9 @@ NPUArray::NPUArray(const NPUArray& other) {
     this->aclDtype = other.aclDtype;
     this->tensorSize = other.tensorSize;
     this->strides = other.strides;
+    if (this->tensorSize > std::numeric_limits<int64_t>::max() / GetDataTypeSize(this->aclDtype)) {
+        throw std::runtime_error("[npu_array.cpp](NPUArray) Tensor Byte Size Overflows int64_t!");
+    }
     auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
     this->devicePtr = nullptr;
     if (tensorByteSize > 0) {
@@ -170,6 +180,9 @@ NPUArray& NPUArray::operator=(const NPUArray& other) {
         this->tensorSize = other.tensorSize;
         this->strides = other.strides;
 
+        if (this->tensorSize > std::numeric_limits<int64_t>::max() / GetDataTypeSize(this->aclDtype)) {
+            throw std::runtime_error("[npu_array.cpp](NPUArray) Tensor Byte Size Overflows int64_t!");
+        }
         auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
         this->devicePtr = nullptr;
         if (tensorByteSize > 0) {
@@ -285,6 +298,9 @@ NPUArray NPUArray::FromNumpy(py::array hostData) {
  * @throws std::runtime_error If tensor size doesn't match NumPy array size.
  */
 py::array NPUArray::ToNumpy() const {
+    if (this->tensorSize > std::numeric_limits<int64_t>::max() / GetDataTypeSize(this->aclDtype)) {
+        throw std::runtime_error("[npu_array.cpp](NPUArray) Tensor Byte Size Overflows int64_t!");
+    }
     auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
 
     // create result array
@@ -333,6 +349,9 @@ int64_t NPUArray::GetShapeSize(const std::vector<int64_t>& shape) {
     for (auto i : shape) {
         if (i < 0) {
             throw std::runtime_error("[npu_array.cpp](GetShapeSize) Shape Dimensions Must Be Non-Negative!");
+        }
+        if (i != 0 && shapeSize > std::numeric_limits<int64_t>::max() / i) {
+            throw std::runtime_error("[npu_array.cpp](GetShapeSize) Shape Size Overflows int64_t!");
         }
         shapeSize *= i;
     }
