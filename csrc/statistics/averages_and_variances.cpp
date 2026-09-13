@@ -118,6 +118,7 @@ NPUArray Mean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::
     ACLNN_CHECK(error, "aclnnMean");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnMean completed");
     return result;
 }
@@ -144,6 +145,7 @@ double Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
     ACLNN_CHECK(error, "aclnnMean");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnMean completed");
     return ExtractScalarValue(result);
 }

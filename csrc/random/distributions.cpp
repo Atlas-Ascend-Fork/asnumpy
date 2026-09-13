@@ -110,6 +110,7 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnPowTensorScalar");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(exponent);
     LOG_INFO("aclnnPowTensorScalar completed");
 
     uint64_t reci_workspaceSize = 0;
@@ -134,6 +135,8 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceSubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(other);
     LOG_INFO("aclnnInplaceSubs completed");
     return result;
 }
@@ -174,6 +177,8 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnRsubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(other);
     LOG_INFO("aclnnRsubs completed");
 
     uint64_t log_workspaceSize = 0;
@@ -200,6 +205,7 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(mulnum);
     LOG_INFO("aclnnInplaceMuls completed");
 
     uint64_t sqrt_workspaceSize = 0;
@@ -225,6 +231,7 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(muls);
     LOG_INFO("aclnnInplaceMuls completed");
     return result;
 }
@@ -331,6 +338,8 @@ NPUArray Generator_Standard_cauchy(const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceSubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(other);
     LOG_INFO("aclnnInplaceSubs completed");
 
     double PI = 3.141592653589793238462643383279502884197169399375105820974944;
@@ -345,6 +354,7 @@ NPUArray Generator_Standard_cauchy(const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(pi);
     LOG_INFO("aclnnInplaceMuls completed");
 
     uint64_t tan_workspaceSize = 0;
@@ -397,6 +407,7 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnRsubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other1);
     LOG_INFO("aclnnRsubs completed");
 
     uint64_t log_workspaceSize = 0;
@@ -425,6 +436,8 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnRsubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other2);
+    aclDestroyScalar(alpha);
     LOG_INFO("aclnnRsubs completed");
 
     float scalar4 = 1.0f / a;
@@ -440,6 +453,7 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnPowTensorScalar");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(exponent);
     LOG_INFO("aclnnPowTensorScalar completed");
     return result;
 }

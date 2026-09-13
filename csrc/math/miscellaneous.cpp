@@ -82,6 +82,7 @@ namespace asnumpy {
         throw std::runtime_error(error_msg);
     }
     error1 = aclrtSynchronizeDevice();
+    aclDestroyIntArray(dims_acl);
     if (error1 != ACL_SUCCESS) {
         std::string error_msg = "[miscellaneous.cpp](convolve) aclrtSynchronizeDevice error = " + std::to_string(error1);
         const char* detailed_msg = aclGetRecentErrMsg();
@@ -139,6 +140,10 @@ namespace asnumpy {
     }
 
     error2 = aclrtSynchronizeDevice();
+    aclDestroyIntArray(dilations);
+    aclDestroyIntArray(outPads);
+    aclDestroyIntArray(pads);
+    aclDestroyIntArray(strides);
     if (error2 != ACL_SUCCESS) {
         std::string error_msg = "[miscellaneous.cpp](convolve) aclrtSynchronizeDevice error = " + std::to_string(error2);
         const char* detailed_msg = aclGetRecentErrMsg();

@@ -328,6 +328,8 @@ NPUArray Radians(const NPUArray& x) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyTensorList(output_list);
+    aclDestroyTensorList(input_list);
 
     LOG_INFO("aclnnForeachMulScalar completed");
 
