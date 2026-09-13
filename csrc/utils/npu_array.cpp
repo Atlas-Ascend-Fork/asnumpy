@@ -257,9 +257,16 @@ NPUArray::~NPUArray() {
  * @throws std::runtime_error If getting tensor data pointer fails or data copy fails.
  */
 NPUArray NPUArray::FromNumpy(py::array hostData) {
-    py::buffer_info info = hostData.request();
+    // Non-C-contiguous views (slices, transposes, broadcast results) do not
+    // expose a contiguous buffer of size*itemsize bytes; normalize to a
+    // C-contiguous copy before the device memcpy below.
+    py::array contiguous = py::array::ensure(hostData, py::array::c_style);
+    if (!contiguous) {
+        throw std::runtime_error("[npu_array.cpp](FromNumpy) failed to obtain a C-contiguous array");
+    }
+    py::buffer_info info = contiguous.request();
     auto tensorByteSize = info.size * info.itemsize;
-    auto result = NPUArray(info.shape, hostData.dtype());
+    auto result = NPUArray(info.shape, contiguous.dtype());
     if (tensorByteSize == 0)
         return result;
     void* rawDataPtr = nullptr;
