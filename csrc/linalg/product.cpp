@@ -87,6 +87,10 @@ NPUArray Matmul(const NPUArray& x1, const NPUArray& x2) {
 }
 
 NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
+    if (operands.size() < 2) {
+        throw std::runtime_error(
+            fmt::format("[product.cpp](einsum) expected at least 2 operands, got {}", operands.size()));
+    }
     LOG_DEBUG("aclnnEinsum start: subscripts={}, x1_shape={}, x2_shape={}, aclDtype={}", subscripts,
               detail::FormatShape(operands[0].shape), detail::FormatShape(operands[1].shape),
               AclDtypeName(operands[0].aclDtype));
@@ -97,8 +101,12 @@ NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
     std::vector<int64_t> shape;
     if (!std::strcmp(subscripts, "a,b->ab")) {
         shape = {operands[0].shape[0], operands[1].shape[0]};
-    } else {
+    } else if (!std::strcmp(subscripts, "abcd,abced->abce") && operands[1].shape.size() == 5) {
         shape = {operands[1].shape[0], operands[1].shape[1], operands[1].shape[2], operands[1].shape[4]};
+    } else {
+        throw std::runtime_error(fmt::format(
+            "[product.cpp](einsum) unsupported subscripts '{}': only 'a,b->ab' and 'abcd,abced->abce' are implemented",
+            subscripts));
     }
     auto result = NPUArray(shape, operands[0].dtype);
     uint64_t workspaceSize = 0;
