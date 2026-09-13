@@ -32,6 +32,10 @@ using namespace asnumpy;
 py::object Linalg_Qr(const NPUArray& a, const std::string& mode) {
     LOG_DEBUG("aclnnLinalgQr start: input_shape={}, aclDtype={}, mode={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype), mode);
+    if (a.shape.size() < 2) {
+        throw std::runtime_error(
+            fmt::format("[decompositions.cpp](qr) expected input with ndim >= 2, got ndim={}", a.shape.size()));
+    }
     int size = a.shape.size();
     int64_t m = a.shape[size - 2];
     int64_t n = a.shape.back();

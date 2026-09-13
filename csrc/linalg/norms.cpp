@@ -75,6 +75,10 @@ NPUArray Linalg_Norm(const NPUArray& a, double ord, const std::vector<int64_t>& 
 NPUArray Linalg_Det(const NPUArray& a) {
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
+    if (a.shape.size() < 2) {
+        throw std::runtime_error(
+            fmt::format("[norms.cpp](det) expected input with ndim >= 2, got ndim={}", a.shape.size()));
+    }
     std::vector<int64_t> shape = a.shape;
     shape.erase(shape.end() - 2, shape.end());
 
@@ -122,6 +126,10 @@ NPUArray Linalg_Det(const NPUArray& a) {
 std::pair<NPUArray, NPUArray> Linalg_Slogdet(const NPUArray& a) {
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
+    if (a.shape.size() < 2) {
+        throw std::runtime_error(
+            fmt::format("[norms.cpp](slogdet) expected input with ndim >= 2, got ndim={}", a.shape.size()));
+    }
     auto shape = a.shape;
     shape.erase(shape.end() - 2, shape.end());
 
