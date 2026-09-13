@@ -347,8 +347,20 @@ NPUArray Degrees(const NPUArray& x) {
     void* factorPtr = nullptr;
     auto error = aclGetRawTensorAddr(factorArr.tensorPtr, &factorPtr);
     ACL_RT_CHECK(error, "aclGetRawTensorAddr");
-    double hostValue = factor;
-    error = aclrtMemcpy(factorPtr, sizeof(double), &hostValue, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
+    if (aclType == ACL_FLOAT) {
+        float hostValue = static_cast<float>(factor);
+        error = aclrtMemcpy(factorPtr, sizeof(float), &hostValue, sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE);
+    } else if (aclType == ACL_FLOAT16) {
+        float factor_float = static_cast<float>(factor);
+        uint32_t float_bits;
+        std::memcpy(&float_bits, &factor_float, sizeof(float_bits));
+        uint16_t hostValue =
+            static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
+                                  ((float_bits >> 13) & 0x03FFU));
+        error = aclrtMemcpy(factorPtr, sizeof(uint16_t), &hostValue, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
+    } else {
+        error = aclrtMemcpy(factorPtr, sizeof(double), &factor, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
+    }
     ACL_RT_CHECK(error, "Write const factor");
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor = nullptr;
