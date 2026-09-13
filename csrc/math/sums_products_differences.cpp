@@ -133,6 +133,7 @@ NPUArray Sum(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::d
     ACLNN_CHECK(error, "aclnnReduceSum");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnReduceSum completed");
     return result;
 }
@@ -173,6 +174,7 @@ double Sum(const NPUArray& a) {
     ACLNN_CHECK(error2, "aclnnReduceSum");
     error2 = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error2, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnReduceSum completed");
 
     py::array x = result.ToNumpy();
@@ -319,6 +321,7 @@ NPUArray Nansum(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py
     ACLNN_CHECK(error, "aclnnReduceNansum");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnReduceNansum completed");
     return result;
 }
@@ -359,6 +362,7 @@ double Nansum(const NPUArray& a) {
     ACLNN_CHECK(error2, "aclnnReduceNansum");
     error2 = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error2, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnReduceNansum completed");
 
     py::array x = result.ToNumpy();
@@ -396,6 +400,7 @@ NPUArray Cumprod(const NPUArray& a, int64_t axis, std::optional<py::dtype> dtype
     ACLNN_CHECK(error, "aclnnCumprod");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(axis_scalar);
     LOG_INFO("aclnnCumprod completed");
     return result;
 }
@@ -454,6 +459,7 @@ NPUArray Nancumprod(const NPUArray& a, int64_t axis, std::optional<py::dtype> dt
     ACLNN_CHECK(error2, "aclnnCumprod");
     error2 = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error2, "aclrtSynchronizeDevice");
+    aclDestroyScalar(axis_scalar);
     LOG_INFO("aclnnCumprod completed");
     return result;
 }
