@@ -80,6 +80,19 @@ void asnumpy::cann::init() {
     LOG_INFO("CANN backend initialized successfully");
 }
 
+uint32_t asnumpy::cann::get_device_count() {
+    uint32_t count = 0;
+    auto ret = aclrtGetDeviceCount(&count);
+    if (ret != ACL_SUCCESS) {
+        auto message = aclGetRecentErrMsg();
+        std::string detail = message ? std::string(" - ") + message : "";
+        spdlog::error("[driver.cpp](get_device_count) aclrtGetDeviceCount error = {}{}", ret, detail);
+        throw std::runtime_error(
+            fmt::format("[driver.cpp](get_device_count) aclrtGetDeviceCount error = {}{}", ret, detail));
+    }
+    return count;
+}
+
 void asnumpy::cann::finalize() {
     auto ret = aclFinalize();
     if (ret != ACL_SUCCESS) {
