@@ -24,7 +24,7 @@ import numpy as np
 from loguru import logger
 
 from ._version import __version__
-from .cann import finalize, init, reset_device, reset_device_force, set_device
+from .cann import finalize, get_device_count, init, reset_device, reset_device_force, set_device
 
 if TYPE_CHECKING:
     from . import linalg, random
@@ -378,6 +378,7 @@ _LAZY_MAPPING = {
 
 _EAGER_EXPORTS = [
     "finalize",
+    "get_device_count",
     "init",
     "reset_device",
     "reset_device_force",

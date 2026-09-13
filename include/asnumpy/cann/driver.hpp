@@ -27,6 +27,7 @@ void init_logging();
 void shutdown_logging();
 void init();
 void finalize();
+uint32_t get_device_count();
 
 } // namespace cann
 } // namespace asnumpy

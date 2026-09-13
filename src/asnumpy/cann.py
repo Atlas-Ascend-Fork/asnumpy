@@ -20,6 +20,9 @@ from ._core.cann import (
     finalize as _finalize,
 )
 from ._core.cann import (
+    get_device_count as _get_device_count,
+)
+from ._core.cann import (
     init as _init,
 )
 from ._core.cann import (
@@ -49,6 +52,12 @@ def reset_device(device_id: int) -> None:
 def reset_device_force(device_id: int) -> None:
     logger.info(f"Force resetting device {device_id}")
     _reset_device_force(device_id)
+
+
+@logger.catch
+def get_device_count() -> int:
+    logger.info("Querying NPU device count")
+    return _get_device_count()
 
 
 @logger.catch
