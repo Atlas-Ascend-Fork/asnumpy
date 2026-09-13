@@ -110,12 +110,24 @@ NPUArray All(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     LOG_DEBUG("aclnnAll start: input_shape={}, tensorSize={}, aclDtype={}, dim={}, keepdims={}",
               detail::FormatShape(x.shape), x.tensorSize, AclDtypeName(x.aclDtype), detail::FormatShape(dim), keepdims);
     std::vector<int64_t> shape = x.shape;
+    std::vector<int64_t> normDim = dim;
+    const int64_t rank = static_cast<int64_t>(x.shape.size());
+    for (int64_t& d : normDim) {
+        if (d < 0) {
+            d += rank;
+        }
+        if (d < 0 || d >= rank) {
+            throw std::invalid_argument(fmt::format(
+                "[logic.cpp]({}) axis {} out of bounds for array of dimension {}",
+                __func__, d, rank));
+        }
+    }
     if (keepdims) {
         for (int i = 0; i < dim.size(); i++) {
-            shape[dim[i]] = 1;
+            shape[normDim[i]] = 1;
         }
     } else {
-        std::vector<int64_t> dim_remove = dim;
+        std::vector<int64_t> dim_remove = normDim;
         std::sort(dim_remove.begin(), dim_remove.end(), std::greater<int64_t>());
         for (int i = 0; i < dim.size(); i++) {
             shape.erase(shape.begin() + dim_remove[i]);
@@ -128,7 +140,7 @@ NPUArray All(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     void* workspaceAddr = nullptr;
 
     // build dim array
-    aclIntArray* aclDim = aclCreateIntArray(dim.data(), dim.size());
+    aclIntArray* aclDim = aclCreateIntArray(normDim.data(), normDim.size());
     if (!aclDim) {
         throw std::runtime_error(fmt::format("[logic.cpp]({}) failed to create aclIntArray", __func__));
     }
@@ -188,12 +200,24 @@ NPUArray Any(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     LOG_DEBUG("aclnnAny start: input_shape={}, tensorSize={}, aclDtype={}, dim={}, keepdims={}",
               detail::FormatShape(x.shape), x.tensorSize, AclDtypeName(x.aclDtype), detail::FormatShape(dim), keepdims);
     std::vector<int64_t> shape = x.shape;
+    std::vector<int64_t> normDim = dim;
+    const int64_t rank = static_cast<int64_t>(x.shape.size());
+    for (int64_t& d : normDim) {
+        if (d < 0) {
+            d += rank;
+        }
+        if (d < 0 || d >= rank) {
+            throw std::invalid_argument(fmt::format(
+                "[logic.cpp]({}) axis {} out of bounds for array of dimension {}",
+                __func__, d, rank));
+        }
+    }
     if (keepdims) {
         for (int i = 0; i < dim.size(); i++) {
-            shape[dim[i]] = 1;
+            shape[normDim[i]] = 1;
         }
     } else {
-        std::vector<int64_t> dim_remove = dim;
+        std::vector<int64_t> dim_remove = normDim;
         std::sort(dim_remove.begin(), dim_remove.end(), std::greater<int64_t>());
         for (int i = 0; i < dim.size(); i++) {
             shape.erase(shape.begin() + dim_remove[i]);
@@ -206,7 +230,7 @@ NPUArray Any(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     void* workspaceAddr = nullptr;
 
     // build dim array
-    aclIntArray* aclDim = aclCreateIntArray(dim.data(), dim.size());
+    aclIntArray* aclDim = aclCreateIntArray(normDim.data(), normDim.size());
     if (!aclDim) {
         throw std::runtime_error(fmt::format("[logic.cpp]({}) failed to create aclIntArray", __func__));
     }
