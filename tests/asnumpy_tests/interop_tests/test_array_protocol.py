@@ -25,6 +25,7 @@ support it.
 
 import numpy as np
 import pytest
+from asnumpy._core import ndarray as core_ndarray
 
 import asnumpy as ap
 
@@ -109,7 +110,5 @@ def test_len_of_a_0d_array_raises_type_error():
 @pytest.mark.parametrize("name", ["__array__", "__iter__", "__len__"])
 def test_protocol_is_defined_on_the_core_type(name):
     """The raw ``_core.ndarray`` must support the protocol too, not just the public subclass."""
-    from asnumpy._core import ndarray as core_ndarray
-
     assert name in dir(core_ndarray)
     assert name in dir(ap.ndarray)
