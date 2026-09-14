@@ -75,6 +75,46 @@ void bind_utils(pybind11::module_& utils) {
                 byte_strides[i] = self.strides[i] * itemsize;
             }
             return byte_strides;
-        });
+        })
+        // NumPy array protocol. Without __array__, numpy.asarray(npu_array) produced a 0-d object
+        // array and libraries built on NumPy (pandas, matplotlib, scikit-learn, ...) rejected the
+        // array as an unrecognized type. Defined on the core type rather than on the Python-level
+        // asnumpy.ndarray subclass so that every array asnumpy hands out -- including the raw
+        // _core.ndarray returned by asnumpy.load() -- is consumable by NumPy.
+        .def(
+            "__array__",
+            [](const NPUArray& self, py::object dtype, py::object /*copy*/) -> py::object {
+                // NumPy 2.x passes `copy`; it needs no handling because ToNumpy() always allocates
+                // a fresh host array. A requested dtype is applied on the host, exactly as
+                // numpy.ndarray.__array__ does.
+                py::array host = self.ToNumpy();
+                if (dtype.is_none()) {
+                    return host;
+                }
+                return host.attr("astype")(dtype);
+            },
+            py::arg("dtype") = py::none(), py::arg("copy") = py::none(),
+            "Return the array contents as a numpy.ndarray (NumPy array protocol).")
+        // pandas decides whether a value is array-like through the iteration protocol, so
+        // __array__ alone is not enough: pd.Series(array) and pd.DataFrame(array) treat the array
+        // as a scalar object without __iter__. Iterating the host view keeps NumPy's semantics
+        // (rows for a 2-d array, TypeError for a 0-d array).
+        .def(
+            "__iter__", [](const NPUArray& self) { return py::iter(self.ToNumpy()); },
+            "Iterate over the first axis, yielding numpy arrays (NumPy iteration protocol).")
+        .def(
+            "__len__",
+            [](const NPUArray& self) {
+                if (self.shape.empty()) {
+                    // Matches NumPy: len() of a 0-d array is a TypeError, not 0. Raised through
+                    // error_already_set rather than py::type_error because the module's exception
+                    // translator catches std::runtime_error first, and py::type_error derives from
+                    // it -- that path would report a RuntimeError instead.
+                    PyErr_SetString(PyExc_TypeError, "len() of unsized object");
+                    throw py::error_already_set();
+                }
+                return static_cast<py::ssize_t>(self.shape.front());
+            },
+            "Return the length of the first dimension (NumPy len() protocol).");
     utils.def("broadcast_shape", &GetBroadcastShape, py::arg("a"), py::arg("b"));
 }

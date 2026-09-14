@@ -1,0 +1,4 @@
+Make AsNumpy arrays usable with pandas and other NumPy-based libraries: ``NPUArray`` now implements
+the NumPy array protocol (``__array__``, ``__iter__``, ``__len__``), so ``numpy.asarray``,
+``pandas.Series``, and ``pandas.DataFrame`` accept an AsNumpy array directly instead of reporting an
+unrecognized type.

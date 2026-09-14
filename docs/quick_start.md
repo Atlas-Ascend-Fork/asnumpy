@@ -105,6 +105,29 @@ print(ap.get_device_count())  # e.g. 8
 ap.set_device(1)
 ```
 
+## Interoperability with NumPy and pandas
+
+AsNumpy arrays implement the NumPy array protocol, so NumPy and libraries built on it (pandas,
+matplotlib, scikit-learn, ...) accept them directly. The conversion copies the data from NPU to
+host memory:
+
+```python
+import numpy as np
+import pandas as pd
+import asnumpy as ap
+
+a = ap.ndarray.from_numpy(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+
+# NumPy sees a real ndarray
+np.asarray(a)          # array([1., 2., 3.], dtype=float32)
+
+# pandas works without an explicit conversion
+pd.Series(a)
+pd.DataFrame({"x": a})
+```
+
+Use `a.to_numpy()` when you want the device-to-host copy to be explicit.
+
 ## More Examples
 
 Runnable scripts are available in [`examples/`](../examples/):

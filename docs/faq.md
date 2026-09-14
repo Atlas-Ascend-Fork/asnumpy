@@ -53,3 +53,27 @@ For small tensors (e.g., 500×500), NPU kernel launch overhead dominates the mea
 No. AsNumpy handles device initialization automatically on `import asnumpy` and releases the device on program exit. You only need to call `ap.set_device(n)` if you want to select a specific NPU other than device 0.
 
 </details>
+
+<details>
+<summary><b>Can I pass an AsNumpy array directly to pandas?</b></summary>
+
+Yes. `NPUArray` implements the NumPy array protocol (`__array__`, `__iter__`, `__len__`), so pandas accepts it the same way it accepts a `numpy.ndarray`:
+
+```python
+import numpy as np
+import pandas as pd
+import asnumpy as ap
+
+a = ap.ndarray.from_numpy(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+
+print(pd.Series(a))                      # 0  1.0 / 1  2.0 / 2  3.0
+print(pd.DataFrame({"x": a}))            # 3 rows, column x
+```
+
+pandas converts the array by copying it from NPU to host memory, exactly like `np.asarray(a)` or `a.to_numpy()`. If you want the conversion to be explicit — or you are on an older release that predates the protocol — call `.to_numpy()` yourself:
+
+```python
+frame = pd.DataFrame(a.to_numpy())
+```
+
+</details>
