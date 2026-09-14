@@ -150,3 +150,86 @@ def test_arctan2_int(xp, dtype):
     t_y = _create_array(xp, y, dtype)
     t_x = _create_array(xp, x, dtype)
     return xp.arctan2(t_y, t_x)
+
+
+# ========== 4. 角度弧度转换 (Deg2rad, Radians, Degrees, Rad2deg) ==========
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
+def test_deg2rad_basic(xp, dtype):
+    data = [0.0, 90.0, 180.0, 45.5, -270.0]
+    a = _create_array(xp, data, dtype)
+    return xp.deg2rad(a)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
+def test_radians_basic(xp, dtype):
+    """radians 与 deg2rad 为同一实现的不同入口"""
+    data = [0.0, 90.0, 180.0, 45.5, -270.0]
+    a = _create_array(xp, data, dtype)
+    return xp.radians(a)
+
+
+# float16 的 ULP 在 90 附近约 0.0625，默认 rtol=1e-7 远小于单精度位差（同 test_trig_float16）。
+@testing.for_dtypes([numpy.float16])
+@testing.numpy_asnumpy_allclose(rtol=1e-3, atol=1e-3)
+def test_deg2rad_float16(xp, dtype):
+    data = [0.0, 90.0, 180.0]
+    a = _create_array(xp, data, dtype)
+    return xp.deg2rad(a)
+
+
+@pytest.mark.xfail(
+    reason="[FIXABLE] aclnnForeachMulScalar unsupported dtype (float64)", strict=True
+)
+@testing.for_dtypes([numpy.float64])
+def test_deg2rad_float64_xfail(xp, dtype):
+    data = [0.0, 90.0, 180.0]
+    a = _create_array(xp, data, dtype)
+    return xp.deg2rad(a)
+
+
+@testing.for_dtypes([numpy.float64])
+@testing.numpy_asnumpy_allclose(rtol=1e-12)
+def test_degrees_basic(xp, dtype):
+    data = [0.0, numpy.pi / 2, numpy.pi, 1.5, -numpy.pi]
+    a = _create_array(xp, data, dtype)
+    return xp.degrees(a)
+
+
+@testing.for_dtypes([numpy.int32, numpy.int64])
+@testing.numpy_asnumpy_allclose(rtol=1e-12)
+def test_degrees_int(xp, dtype):
+    """整数输入两侧均提升为 float64"""
+    data = [0, 1, -1, 2]
+    a = _create_array(xp, data, dtype)
+    return xp.degrees(a)
+
+
+@pytest.mark.xfail(reason="[FIXABLE] Degrees float32/float16 输出量级错误（约 1e-22）", strict=True)
+@testing.for_dtypes([numpy.float32, numpy.float16])
+@testing.numpy_asnumpy_allclose(atol=1e-3, rtol=1e-3)
+def test_degrees_float32_xfail(xp, dtype):
+    data = [0.0, numpy.pi / 2, numpy.pi]
+    a = _create_array(xp, data, dtype)
+    return xp.degrees(a)
+
+
+@testing.for_dtypes([numpy.float64])
+@testing.numpy_asnumpy_allclose(rtol=1e-12)
+def test_rad2deg_basic(xp, dtype):
+    """rad2deg 与 degrees 为同一实现的不同入口"""
+    data = [0.0, numpy.pi / 2, numpy.pi, 1.5, -numpy.pi]
+    a = _create_array(xp, data, dtype)
+    return xp.rad2deg(a)
+
+
+@pytest.mark.xfail(reason="[FIXABLE] Rad2deg float32/float16 输出量级错误（约 1e-22）", strict=True)
+@testing.for_dtypes([numpy.float32, numpy.float16])
+@testing.numpy_asnumpy_allclose(atol=1e-3, rtol=1e-3)
+def test_rad2deg_float32_xfail(xp, dtype):
+    data = [0.0, numpy.pi / 2, numpy.pi]
+    a = _create_array(xp, data, dtype)
+    return xp.rad2deg(a)
