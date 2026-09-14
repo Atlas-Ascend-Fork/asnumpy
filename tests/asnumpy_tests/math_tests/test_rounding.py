@@ -23,6 +23,7 @@
 4. floor: 不支持 float16 和复数
 5. ceil: 仅支持 float32/64
 6. trunc: 仅支持 float32
+7. round_/modf: round_ 支持 float32/64；modf 仅 float32/64 且负数语义为向下取整
 """
 
 import numpy
@@ -119,3 +120,62 @@ def test_trunc_basic(xp, dtype):
     data = [-1.7, 0.2, 1.5]
     a = _create_array(xp, data, dtype)
     return xp.trunc(a)
+
+
+# ========== 4. Round 与 Modf ==========
+
+
+@testing.for_dtypes([numpy.float32, numpy.float64])
+@testing.numpy_asnumpy_allclose()
+def test_round_basic(xp, dtype):
+    """测试 round_ 入口（NumPy 2.0 移除 np.round_，numpy 侧以 np.round 为参考）"""
+    data = [0.4, 0.5, 0.6, 1.5, 2.5, -1.5]
+    a = _create_array(xp, data, dtype)
+    if xp is numpy:
+        return xp.round(a)
+    return xp.round_(a)
+
+
+@testing.for_dtypes([numpy.int32, numpy.int64])
+@testing.numpy_asnumpy_allclose()
+def test_round_int(xp, dtype):
+    """记录：round_ 与 around 一致，支持 int32/64"""
+    data = [1, 5, 10]
+    a = _create_array(xp, data, dtype)
+    if xp is numpy:
+        return xp.round(a)
+    return xp.round_(a)
+
+
+@testing.for_dtypes([numpy.float32, numpy.float64])
+@testing.numpy_asnumpy_allclose()
+def test_modf_fractional(xp, dtype):
+    """测试 modf 小数部分；modf 返回 (小数, 整数) 元组，分别验证"""
+    data = [0.0, 1.5, 2.3, 7.8]
+    a = _create_array(xp, data, dtype)
+    return xp.modf(a)[0]
+
+
+@testing.for_dtypes([numpy.float32, numpy.float64])
+@testing.numpy_asnumpy_allclose()
+def test_modf_integral(xp, dtype):
+    """测试 modf 整数部分（非负输入）"""
+    data = [0.0, 1.5, 2.3, 7.8]
+    a = _create_array(xp, data, dtype)
+    return xp.modf(a)[1]
+
+
+@pytest.mark.xfail(reason="[FIXABLE] Modf 负数语义为向下取整，NumPy 为向零取整", strict=True)
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose()
+def test_modf_negative_xfail(xp, dtype):
+    data = [-1.7, -0.2, -2.3]
+    a = _create_array(xp, data, dtype)
+    return xp.modf(a)[0]
+
+
+@pytest.mark.xfail(reason="[FIXABLE] aclnnModf 不支持 float16/整数输入", strict=True)
+@testing.for_dtypes([numpy.float16, numpy.int32])
+def test_modf_unsupported_xfail(xp, dtype):
+    a = _create_array(xp, [1.5, 2.5], dtype)
+    return xp.modf(a)

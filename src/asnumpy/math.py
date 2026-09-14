@@ -189,6 +189,9 @@ from ._core.math import (
     nanmax as _nanmax,
 )
 from ._core.math import (
+    nanmin as _nanmin,
+)
+from ._core.math import (
     nanprod as _nanprod,
 )
 from ._core.math import (
@@ -703,6 +706,12 @@ def nanmax(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> n
     if axis is None:
         return _nanmax(a)  # type: ignore[no-any-return]
     return ndarray(_nanmax(a, axis, keepdims))
+
+
+def nanmin(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None:
+        return _nanmin(a)  # type: ignore[no-any-return]
+    return ndarray(_nanmin(a, axis, keepdims))
 
 
 def min(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
