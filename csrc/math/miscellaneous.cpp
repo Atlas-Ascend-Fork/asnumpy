@@ -205,6 +205,10 @@ NPUArray Clip(const NPUArray& a, float a_min, float a_max) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+
+    aclDestroyScalar(amin_scalar);
+    aclDestroyScalar(amax_scalar);
+
     LOG_INFO("aclnnClamp completed");
     return result;
 }
@@ -232,6 +236,9 @@ NPUArray Clip(const NPUArray& a, float a_min, const NPUArray& a_max) {
     ACLNN_CHECK(error1, "aclnnClampMin");
     error1 = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error1, "aclrtSynchronizeDevice");
+
+    aclDestroyScalar(amin_scalar);
+
     LOG_INFO("aclnnClampMin completed");
 
     NPUArray in_max = EnsureAclDtype(a_max, outType);
@@ -270,6 +277,9 @@ NPUArray Clip(const NPUArray& a, const NPUArray& a_min, float a_max) {
     ACLNN_CHECK(error1, "aclnnClampMax");
     error1 = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error1, "aclrtSynchronizeDevice");
+
+    aclDestroyScalar(amax_scalar);
+
     LOG_INFO("aclnnClampMax completed");
 
     NPUArray in_min = EnsureAclDtype(a_min, outType);
