@@ -181,11 +181,9 @@ def test_deg2rad_float16(xp, dtype):
     return xp.deg2rad(a)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] aclnnForeachMulScalar unsupported dtype (float64)", strict=True
-)
 @testing.for_dtypes([numpy.float64])
-def test_deg2rad_float64_xfail(xp, dtype):
+@testing.numpy_asnumpy_allclose(rtol=1e-12)
+def test_deg2rad_float64(xp, dtype):
     data = [0.0, 90.0, 180.0]
     a = _create_array(xp, data, dtype)
     return xp.deg2rad(a)
