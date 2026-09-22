@@ -320,6 +320,10 @@ def test_vdot_empty(xp, dtype):
 # ==========================================================================
 # 5. matmul 矩阵乘法测试
 # ==========================================================================
+#
+# 能力注记: aclnnMatmul 仅支持 FLOAT/FLOAT16/BFLOAT16 (Atlas A2 支持矩阵)。
+# 含 float64 的用例由 Python 层回退 NumPy 计算并搬回 NPU (见 asnumpy/linalg/direct.py),
+# NPU 路径本身不执行 FP64 矩阵乘。
 
 
 # ---------- 5.1 基础功能 ----------
@@ -345,6 +349,7 @@ def test_matmul_fp32_precision(xp, dtype):
     return xp.matmul(a, b)
 
 
+# ACLNN 不支持 FP64: 本用例完全运行在 CPU 回退路径, rtol=1e-10 的严格容差不反映 NPU 精度
 @testing.for_dtypes([numpy.float64])
 @testing.numpy_asnumpy_allclose(rtol=1e-10, atol=1e-10)
 def test_matmul_fp64_precision(xp, dtype):
