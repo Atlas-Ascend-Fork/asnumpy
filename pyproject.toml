@@ -55,6 +55,9 @@ test = [
     "pytest>=9.0.0",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
+    # Optional: exercises the NumPy array protocol through pandas. The pandas interop tests skip
+    # themselves when it is absent (`pytest.importorskip`), so it stays a test-only dependency.
+    "pandas>=2.0",
 ]
 
 [project.urls]
