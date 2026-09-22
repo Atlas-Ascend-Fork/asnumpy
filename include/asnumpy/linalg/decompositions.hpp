@@ -25,3 +25,19 @@
 #include <utility>
 
 py::object Linalg_Qr(const NPUArray& a, const std::string& mode);
+
+/**
+ * @brief Singular value decomposition of a matrix (or a batch of matrices).
+ *
+ * Delegates to aclnnSvd. For an input of shape (..., M, N) with K = min(M, N):
+ *   - full_matrices=true:  u (..., M, M), sigma (..., K), v (..., N, N)
+ *   - full_matrices=false: u (..., M, K), sigma (..., K), v (..., N, K)
+ * The returned `v` is V, not V^H; the Python wrapper transposes it to NumPy's `vh`.
+ *
+ * @param a Input array with at least two dimensions.
+ * @param full_matrices Whether to return the full u/v or the economy-size ones.
+ * @param compute_uv When false only the singular values are computed and returned.
+ * @return py::object Either (u, sigma, v) or sigma alone.
+ * @throws std::invalid_argument If @p a has fewer than two dimensions.
+ */
+py::object Linalg_Svd(const NPUArray& a, bool full_matrices, bool compute_uv);

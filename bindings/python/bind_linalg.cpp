@@ -32,6 +32,7 @@ void bind_linalg(py::module_& linalg) {
     linalg.def("matrix_power", &Matrix_power, py::arg("a"), py::arg("n"));
     // decomposition
     linalg.def("qr", &Linalg_Qr, py::arg("a"), py::arg("mode") = "reduced");
+    linalg.def("svd", &Linalg_Svd, py::arg("a"), py::arg("full_matrices") = true, py::arg("compute_uv") = true);
 
     // norms
     linalg.def("norm", &Linalg_Norm, py::arg("a"), py::arg("ord") = py::none(), py::arg("axis") = py::none(),

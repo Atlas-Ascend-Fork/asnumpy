@@ -32,8 +32,17 @@ from .._core.linalg import (
 from .._core.linalg import (
     slogdet as _slogdet,
 )
+from .._core.linalg import (
+    svd as _svd,
+)
 from .._types import ArrayLike, AxisLike
 from ..utils import ndarray
+
+
+def _as_npu(a: ArrayLike) -> ndarray:
+    if isinstance(a, ndarray):
+        return a
+    return ndarray.from_numpy(np.asarray(a))
 
 
 def _as_host_array(a: ArrayLike) -> np.ndarray:
@@ -126,3 +135,63 @@ def slogdet(a: ArrayLike) -> tuple:
 
 def inv(a: ArrayLike) -> ndarray:
     return ndarray(_inv(a))
+
+
+def svd(
+    a: ArrayLike,
+    full_matrices: bool = True,
+    compute_uv: bool = True,
+    hermitian: bool = False,
+) -> ndarray | tuple:
+    """Singular value decomposition of a matrix (or a batch of matrices).
+
+    Mirrors :func:`numpy.linalg.svd`: returns ``(u, s, vh)`` when *compute_uv* is true and only
+    ``s`` otherwise. aclnnSvd returns V rather than V^H, so the last factor is conjugate-transposed
+    into NumPy's ``vh`` (a host-side shape rewrite).
+
+    ``hermitian`` is accepted for signature compatibility. aclnnSvd has no Hermitian fast path, so
+    the general decomposition is used regardless; for Hermitian input the result is identical.
+    """
+    a_arr = _as_npu(a)
+    if a_arr.ndim < 2:
+        raise np.linalg.LinAlgError(
+            "1-dimensional array given. Array must be at least two-dimensional"
+        )
+    if a_arr.dtype not in (np.dtype(np.float32), np.dtype(np.float64)):
+        raise TypeError(f"svd supports float32/float64 inputs on the NPU, got {a_arr.dtype}")
+    result = _svd(a_arr, bool(full_matrices), bool(compute_uv))
+    if not compute_uv:
+        return ndarray(result)
+    u, s, v = result
+    # aclnnSvd returns V, NumPy returns V^H: conjugate transpose the last two axes.
+    vh = np.swapaxes(np.conjugate(ndarray(v).to_numpy()), -1, -2)
+    return (ndarray(u), ndarray(s), _to_asnumpy_array(np.ascontiguousarray(vh)))
+
+
+def pinv(a: ArrayLike, rcond: float | None = None, hermitian: bool = False) -> ndarray:
+    """Moore-Penrose pseudo-inverse.
+
+    Mirrors :func:`numpy.linalg.pinv`. The expensive decomposition runs on the NPU via
+    :func:`svd`; the singular-value cutoff and the final product are assembled on the host.
+    """
+    a_arr = _as_npu(a)
+    if a_arr.ndim < 2:
+        raise np.linalg.LinAlgError(
+            "1-dimensional array given. Array must be at least two-dimensional"
+        )
+    u, s, vh = svd(a_arr, full_matrices=False, hermitian=hermitian)
+    u_np = u.to_numpy()
+    s_np = s.to_numpy()
+    vh_np = vh.to_numpy()
+
+    if rcond is None:
+        # NumPy 2.0 default: max(M, N) * eps of the singular-value dtype.
+        rcond = max(a_arr.shape[-2], a_arr.shape[-1]) * np.finfo(s_np.dtype).eps
+    cutoff = rcond * np.max(s_np, axis=-1, keepdims=True)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        s_inv = np.where(s_np > cutoff, 1.0 / s_np, 0.0)
+
+    v = np.swapaxes(np.conjugate(vh_np), -1, -2)
+    uh = np.swapaxes(np.conjugate(u_np), -1, -2)
+    result = (v * s_inv[..., np.newaxis, :]) @ uh
+    return _to_asnumpy_array(np.ascontiguousarray(result))
