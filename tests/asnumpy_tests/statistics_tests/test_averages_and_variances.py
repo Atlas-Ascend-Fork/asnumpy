@@ -90,9 +90,6 @@ def test_mean_basic_global_float32():
     _assert_mean_allclose(data)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] mean returns float64 scalar for float32 global reduction", strict=True
-)
 def test_mean_basic_global_float32_dtype():
     """测试 mean: 全局均值返回 dtype 与 NumPy 一致"""
     data = numpy.array([1.0, 2.0, 3.0, 4.0], dtype=numpy.float32)
