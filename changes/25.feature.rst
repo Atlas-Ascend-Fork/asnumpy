@@ -1,0 +1,4 @@
+Add the NumPy-compatible array manipulation APIs ``concatenate``, ``stack``, ``where``,
+``expand_dims`` and ``squeeze`` (issue #25). ``concatenate``, ``stack`` and ``where`` run on the NPU
+through ``aclnnCat``, ``aclnnStack`` and ``aclnnSWhere``; operand dtypes are promoted with NumPy's
+rules and ``axis``/shape errors match NumPy's exception types.

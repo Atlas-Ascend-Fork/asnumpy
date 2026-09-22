@@ -79,6 +79,7 @@ if TYPE_CHECKING:
         logical_xor,
         not_equal,
     )
+    from .manipulation import concatenate, expand_dims, squeeze, stack, where
     from .math import (
         absolute,
         add,
@@ -228,6 +229,12 @@ _LAZY_MAPPING = {
     "ones_like": ".array",
     "zeros": ".array",
     "zeros_like": ".array",
+    # .manipulation
+    "concatenate": ".manipulation",
+    "expand_dims": ".manipulation",
+    "squeeze": ".manipulation",
+    "stack": ".manipulation",
+    "where": ".manipulation",
     # .linalg
     "linalg": ".linalg",
     # .linalg.direct
