@@ -37,11 +37,23 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <stdexcept>
 
 namespace asnumpy {
+
+namespace {
+
+uint16_t FloatToFp16Bits(float value) {
+    uint32_t float_bits;
+    std::memcpy(&float_bits, &value, sizeof(float_bits));
+    return static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
+                                 ((float_bits >> 13) & 0x03FFU));
+}
+
+} // namespace
 
 NPUArray Sin(const NPUArray& x) {
     return UnaryFloatingPromoteOp(
@@ -301,9 +313,11 @@ NPUArray Radians(const NPUArray& x) {
         float factor_float = static_cast<float>(rad_factor);
         uint32_t float_bits;
         std::memcpy(&float_bits, &factor_float, sizeof(float_bits));
-        uint16_t fp16_bits = static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
-                                                   ((float_bits >> 13) & 0x03FFU));
-        error = aclrtMemcpy(scalar_factor_ptr, sizeof(uint16_t), &fp16_bits, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
+        uint16_t fp16_bits =
+            static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
+                                  ((float_bits >> 13) & 0x03FFU));
+        error =
+            aclrtMemcpy(scalar_factor_ptr, sizeof(uint16_t), &fp16_bits, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
         ACL_RT_CHECK(error, "aclrtMemcpy");
     }
 
@@ -335,33 +349,44 @@ NPUArray Radians(const NPUArray& x) {
 }
 
 NPUArray Degrees(const NPUArray& x) {
-    LOG_DEBUG("aclnnMul start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape), AclDtypeName(x.aclDtype));
+    LOG_DEBUG("aclnnMuls start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape), AclDtypeName(x.aclDtype));
 
-    aclDataType aclType = ACL_DOUBLE;
-    if (x.aclDtype == ACL_FLOAT || x.aclDtype == ACL_FLOAT16 || x.aclDtype == ACL_DOUBLE) {
-        aclType = x.aclDtype;
+    aclDataType aclType = PromoteUnaryFloating(x.aclDtype);
+    ACL_DTYPE_WARN(x.aclDtype, aclType, __func__);
+    NPUArray in = EnsureAclDtype(x, aclType);
+
+    // initialize output tensor (same shape and dtype as input)
+    NPUArray result(x.shape, aclType);
+
+    // radians-to-degrees factor: 180/π
+    const double deg_factor = 180.0 / M_PI;
+    aclScalar* factor_scalar;
+    if (aclType == ACL_DOUBLE) {
+        double factor = deg_factor;
+        factor_scalar = aclCreateScalar(&factor, aclType);
+    } else if (aclType == ACL_FLOAT16) {
+        uint16_t fp16_bits = FloatToFp16Bits(static_cast<float>(deg_factor));
+        factor_scalar = aclCreateScalar(&fp16_bits, aclType);
+    } else {
+        float factor = static_cast<float>(deg_factor);
+        factor_scalar = aclCreateScalar(&factor, aclType);
     }
-    auto out = NPUArray(x.shape, aclType);
-    const double factor = 180.0 / M_PI;
-    auto factorArr = NPUArray({1}, aclType);
-    void* factorPtr = nullptr;
-    auto error = aclGetRawTensorAddr(factorArr.tensorPtr, &factorPtr);
-    ACL_RT_CHECK(error, "aclGetRawTensorAddr");
-    double hostValue = factor;
-    error = aclrtMemcpy(factorPtr, sizeof(double), &hostValue, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
-    ACL_RT_CHECK(error, "Write const factor");
+
+    // get workspace size
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor = nullptr;
-    error = aclnnMulGetWorkspaceSize(x.tensorPtr, factorArr.tensorPtr, out.tensorPtr, &workspaceSize, &executor);
-    ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
+    auto error = aclnnMulsGetWorkspaceSize(in.tensorPtr, factor_scalar, result.tensorPtr, &workspaceSize, &executor);
+    ACLNN_CHECK(error, "aclnnMulsGetWorkspaceSize");
     AclWorkspace workspace(workspaceSize);
-    error = aclnnMul(workspace.get(), workspaceSize, executor, nullptr);
-    ACLNN_CHECK(error, "aclnnMul");
+    error = aclnnMuls(workspace.get(), workspaceSize, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
 
-    LOG_INFO("aclnnMul completed");
+    aclDestroyScalar(factor_scalar);
 
-    return out;
+    LOG_INFO("aclnnMuls completed");
+
+    return result;
 }
 } // namespace asnumpy
