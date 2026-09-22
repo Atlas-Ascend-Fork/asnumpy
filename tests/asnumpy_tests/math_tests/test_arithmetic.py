@@ -221,19 +221,18 @@ def test_hypot_basic(xp, dtype):
     return xp.hypot(a, b)
 
 
-@pytest.mark.xfail(reason="[FIXABLE] Hypot float16 结果错误（返回 x 自身）", strict=True)
 @testing.for_dtypes([numpy.float16])
 @testing.numpy_asnumpy_allclose(rtol=1e-3, atol=1e-3)
-def test_hypot_float16_xfail(xp, dtype):
+def test_hypot_float16(xp, dtype):
     a = _create_array(xp, [3.0], dtype)
     b = _create_array(xp, [4.0], dtype)
     return xp.hypot(a, b)
 
 
-@pytest.mark.xfail(reason="[FIXABLE] Hypot 整数输入转换后结果错误（溢出量级）", strict=True)
 @testing.for_dtypes([numpy.int32])
 @testing.numpy_asnumpy_allclose(rtol=1e-5)
-def test_hypot_int_xfail(xp, dtype):
+def test_hypot_int(xp, dtype):
+    """整数输入两侧均提升为 float64"""
     a = _create_array(xp, [3, 5, 8], dtype)
     b = _create_array(xp, [4, 12, 15], dtype)
     return xp.hypot(a, b)
