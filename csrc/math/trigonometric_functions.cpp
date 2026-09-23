@@ -139,17 +139,23 @@ NPUArray Arctan(const NPUArray& x) {
 }
 
 NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
-    LOG_DEBUG("aclnnMul start: a_shape={}, b_shape={}, aclDtype={}", detail::FormatShape(a.shape),
+    LOG_DEBUG("Hypot start: a_shape={}, b_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               detail::FormatShape(b.shape), AclDtypeName(a.aclDtype));
 
-    auto broadcast = GetBroadcastShape(a, b);
+    aclDataType dtype = PromoteBinaryFloating(a.aclDtype, b.aclDtype);
+    ACL_DTYPE_WARN(a.aclDtype, dtype, __func__);
+    ACL_DTYPE_WARN(b.aclDtype, dtype, __func__);
+    NPUArray in_a = EnsureAclDtype(a, dtype);
+    NPUArray in_b = EnsureAclDtype(b, dtype);
+
+    auto broadcast = GetBroadcastShape(in_a, in_b);
 
     // step 1: compute a squared (a²)
-    NPUArray a_squared(a.shape, a.dtype);
+    NPUArray a_squared(in_a.shape, in_a.dtype);
     uint64_t a_sq_workspace_size = 0;
     aclOpExecutor* a_sq_executor = nullptr;
-    auto error =
-        aclnnMulGetWorkspaceSize(a.tensorPtr, a.tensorPtr, a_squared.tensorPtr, &a_sq_workspace_size, &a_sq_executor);
+    auto error = aclnnMulGetWorkspaceSize(in_a.tensorPtr, in_a.tensorPtr, a_squared.tensorPtr, &a_sq_workspace_size,
+                                          &a_sq_executor);
     ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
 
     AclWorkspace a_sq_workspace(a_sq_workspace_size);
@@ -162,11 +168,11 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
     LOG_INFO("aclnnMul completed");
 
     // step 2: compute b squared (b²)
-    NPUArray b_squared(b.shape, b.dtype);
+    NPUArray b_squared(in_b.shape, in_b.dtype);
     uint64_t b_sq_workspace_size = 0;
     aclOpExecutor* b_sq_executor = nullptr;
-    error =
-        aclnnMulGetWorkspaceSize(b.tensorPtr, b.tensorPtr, b_squared.tensorPtr, &b_sq_workspace_size, &b_sq_executor);
+    error = aclnnMulGetWorkspaceSize(in_b.tensorPtr, in_b.tensorPtr, b_squared.tensorPtr, &b_sq_workspace_size,
+                                     &b_sq_executor);
     ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
 
     AclWorkspace b_sq_workspace(b_sq_workspace_size);
@@ -180,21 +186,16 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
 
     // step 3: compute sum of squares (a² + b²)
     LOG_DEBUG("aclnnAdd start: a_squared_shape={}, b_squared_shape={}, aclDtype={}",
-              detail::FormatShape(a_squared.shape), detail::FormatShape(b_squared.shape), AclDtypeName(a.aclDtype));
-    auto dtype = a.aclDtype;
-    if (a.aclDtype == b.aclDtype) {
-        dtype = a.aclDtype;
-    } else if (a.aclDtype == ACL_DOUBLE || b.aclDtype == ACL_DOUBLE) {
-        dtype = ACL_DOUBLE;
-    } else if (a.aclDtype == ACL_FLOAT || b.aclDtype == ACL_FLOAT) {
-        dtype = ACL_FLOAT;
-    }
+              detail::FormatShape(a_squared.shape), detail::FormatShape(b_squared.shape), AclDtypeName(dtype));
     NPUArray sum_squares(broadcast, dtype);
     uint64_t add_workspace_size = 0;
     aclOpExecutor* add_executor = nullptr;
     aclScalar* alpha_scalar;
-    if (dtype == ACL_DOUBLE || dtype == ACL_INT64) {
+    if (dtype == ACL_DOUBLE) {
         double alpha = 1.0;
+        alpha_scalar = aclCreateScalar(&alpha, dtype);
+    } else if (dtype == ACL_FLOAT16) {
+        uint16_t alpha = FloatToFp16Bits(1.0f);
         alpha_scalar = aclCreateScalar(&alpha, dtype);
     } else {
         float alpha = 1.0f;
@@ -217,14 +218,7 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
     // step 4: compute square root (√(a² + b²))
     LOG_DEBUG("aclnnSqrt start: input_shape={}, aclDtype={}", detail::FormatShape(sum_squares.shape),
               AclDtypeName(sum_squares.aclDtype));
-    aclDataType aclType = ACL_DOUBLE;
-    if (sum_squares.aclDtype == ACL_FLOAT || sum_squares.aclDtype == ACL_FLOAT16 ||
-        sum_squares.aclDtype == ACL_DOUBLE || sum_squares.aclDtype == ACL_COMPLEX64 ||
-        sum_squares.aclDtype == ACL_COMPLEX128) {
-        aclType = sum_squares.aclDtype;
-    }
-    ACL_DTYPE_WARN(sum_squares.aclDtype, aclType, __func__);
-    NPUArray result(broadcast, aclType);
+    NPUArray result(broadcast, dtype);
     uint64_t sqrt_workspace_size = 0;
     aclOpExecutor* sqrt_executor = nullptr;
     error = aclnnSqrtGetWorkspaceSize(sum_squares.tensorPtr, result.tensorPtr, &sqrt_workspace_size, &sqrt_executor);
