@@ -200,13 +200,10 @@ def test_float_power_explicit_dtype(xp, dtype):
     return xp.float_power(a, b, dtype=numpy.float64)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] float_power 未显式指定 dtype 时返回 float32，NumPy 恒为 float64",
-    strict=True,
-)
 @testing.for_dtypes([numpy.float32])
 @testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
-def test_float_power_dtype_xfail(xp, dtype):
+def test_float_power_default_dtype(xp, dtype):
+    """未显式指定 dtype 时恒为 float64 (与 NumPy 一致)"""
     a = _create_array(xp, [2.0, 3.0], dtype)
     b = _create_array(xp, [3.0, 2.0], dtype)
     return xp.float_power(a, b)

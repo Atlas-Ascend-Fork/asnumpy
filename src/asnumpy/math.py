@@ -272,6 +272,15 @@ from ._core.math import (
 from ._core.math import (
     trunc as _trunc,
 )
+from ._promotion import (
+    is_bool_dtype as _is_bool_dtype,
+)
+from ._promotion import (
+    promote_reduction_dtype as _promote_reduction_dtype,
+)
+from ._promotion import (
+    promote_unary_input as _promote_unary_input,
+)
 from ._types import ArrayLike, AxisOptional, DTypeLike
 from ._ufunc import create_ufunc as _create_ufunc
 from .utils import _convert_dtype, ndarray
@@ -343,7 +352,7 @@ def absolute(x: ArrayLike) -> ndarray:
 
 
 def fabs(x: ArrayLike) -> ndarray:
-    return ndarray(_fabs(x))
+    return ndarray(_fabs(_promote_unary_input(x)))
 
 
 def sign(x: ArrayLike) -> ndarray:
@@ -368,7 +377,7 @@ def nan_to_num(
 
 
 def sqrt(x: ArrayLike) -> ndarray:
-    return ndarray(_sqrt(x))
+    return ndarray(_sqrt(_promote_unary_input(x)))
 
 
 def square(x: ArrayLike) -> ndarray:
@@ -439,6 +448,8 @@ def floor_divide(x1: ArrayLike, x2: ArrayLike, dtype: DTypeLike = None) -> ndarr
 
 
 def float_power(x1: ArrayLike, x2: ArrayLike, dtype: DTypeLike = None) -> ndarray:
+    if dtype is None:
+        dtype = np.dtype(np.float64)  # NumPy: float_power 恒为 float64
     return ndarray(_float_power(x1, x2, _convert_dtype(dtype)))
 
 
@@ -478,6 +489,10 @@ def prod(
 ) -> ndarray | float:
     if axis is None:
         return _prod(a)  # type: ignore[no-any-return]
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_prod(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -489,6 +504,10 @@ def sum(
 ) -> ndarray | float:
     if axis is None:
         return _sum(a)  # type: ignore[no-any-return]
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_sum(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -500,6 +519,10 @@ def nanprod(
 ) -> ndarray | float:
     if axis is None:
         return _nanprod(a)  # type: ignore[no-any-return]
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_nanprod(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -511,22 +534,46 @@ def nansum(
 ) -> ndarray | float:
     if axis is None:
         return _nansum(a)  # type: ignore[no-any-return]
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_nansum(a, axis, keepdims, _convert_dtype(dtype)))
 
 
 def cumprod(a: ArrayLike, axis: AxisOptional = None, dtype: DTypeLike = None) -> ndarray:
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            # aclnnCumprod 输入不支持 bool, 提升输出 dtype 亦无法绕开, 排除后回退原 dtype
+            dtype = _promote_reduction_dtype(input_dtype, exclude_input=_is_bool_dtype)
     return ndarray(_cumprod(a, axis, _convert_dtype(dtype)))
 
 
 def cumsum(a: ArrayLike, axis: AxisOptional = None, dtype: DTypeLike = None) -> ndarray:
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            # aclnnCumsum 仅不支持 bool 输出; 提升到 int64 输出后 bool 输入可用 (NPU 实测)
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_cumsum(a, axis, _convert_dtype(dtype)))
 
 
 def nancumprod(a: ArrayLike, axis: AxisOptional = None, dtype: DTypeLike = None) -> ndarray:
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            # aclnnCumprod 输入不支持 bool, 提升输出 dtype 亦无法绕开, 排除后回退原 dtype
+            dtype = _promote_reduction_dtype(input_dtype, exclude_input=_is_bool_dtype)
     return ndarray(_nancumprod(a, axis, _convert_dtype(dtype)))
 
 
 def nancumsum(a: ArrayLike, axis: AxisOptional = None, dtype: DTypeLike = None) -> ndarray:
+    if dtype is None:
+        input_dtype = getattr(a, "dtype", None)
+        if input_dtype is not None:
+            # aclnnCumsum 仅不支持 bool 输出; 提升到 int64 输出后 bool 输入可用 (NPU 实测)
+            dtype = _promote_reduction_dtype(input_dtype)
     return ndarray(_nancumsum(a, axis, _convert_dtype(dtype)))
 
 
