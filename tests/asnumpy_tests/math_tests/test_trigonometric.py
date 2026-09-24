@@ -206,10 +206,9 @@ def test_degrees_int(xp, dtype):
     return xp.degrees(a)
 
 
-@pytest.mark.xfail(reason="[FIXABLE] Degrees float32/float16 输出量级错误（约 1e-22）", strict=True)
 @testing.for_dtypes([numpy.float32, numpy.float16])
 @testing.numpy_asnumpy_allclose(atol=1e-3, rtol=1e-3)
-def test_degrees_float32_xfail(xp, dtype):
+def test_degrees_float32(xp, dtype):
     data = [0.0, numpy.pi / 2, numpy.pi]
     a = _create_array(xp, data, dtype)
     return xp.degrees(a)
@@ -224,10 +223,9 @@ def test_rad2deg_basic(xp, dtype):
     return xp.rad2deg(a)
 
 
-@pytest.mark.xfail(reason="[FIXABLE] Rad2deg float32/float16 输出量级错误（约 1e-22）", strict=True)
 @testing.for_dtypes([numpy.float32, numpy.float16])
 @testing.numpy_asnumpy_allclose(atol=1e-3, rtol=1e-3)
-def test_rad2deg_float32_xfail(xp, dtype):
+def test_rad2deg_float32(xp, dtype):
     data = [0.0, numpy.pi / 2, numpy.pi]
     a = _create_array(xp, data, dtype)
     return xp.rad2deg(a)
