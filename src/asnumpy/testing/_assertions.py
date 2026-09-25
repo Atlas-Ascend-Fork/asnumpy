@@ -69,15 +69,16 @@ def assert_raises(exception_class, func=None, *args, **kwargs):
 
     try:
         func(*args, **kwargs)
-        raise AssertionError(
-            f"Expected {exception_class.__name__} to be raised, but no exception was raised"
-        )
     except exception_class:
         return None
     except Exception as e:
         raise AssertionError(
             f"Expected {exception_class.__name__}, but got {type(e).__name__}: {e}"
         ) from e
+    else:
+        raise AssertionError(
+            f"Expected {exception_class.__name__} to be raised, but no exception was raised"
+        )
 
 
 class _AssertRaisesContext:
@@ -132,9 +133,6 @@ def assert_raises_regex(exception_class, regex_pattern, func=None, *args, **kwar
 
     try:
         func(*args, **kwargs)
-        raise AssertionError(
-            f"Expected {exception_class.__name__} to be raised, but no exception was raised"
-        )
     except exception_class as e:
         if not re.search(regex_pattern, str(e)):
             raise AssertionError(
@@ -145,6 +143,10 @@ def assert_raises_regex(exception_class, regex_pattern, func=None, *args, **kwar
         raise AssertionError(
             f"Expected {exception_class.__name__}, but got {type(e).__name__}: {e}"
         ) from e
+    else:
+        raise AssertionError(
+            f"Expected {exception_class.__name__} to be raised, but no exception was raised"
+        )
 
 
 class _AssertRaisesRegexContext:
