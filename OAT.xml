@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <oatconfig>
+        <licensefile></licensefile>
+        <policylist>
+            <policy name="projectPolicy" desc="">
+                <policyitem type="license" name="Apache-2.0" path=".*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="Project license (see LICENSE)"/>
+                <policyitem type="license" name="CANN-2.0" path=".gitcode/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="CI scripts inherited from CANN infrastructure"/>
+                <policyitem type="copyright" name="Huawei Technologies Co., Ltd." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc=""/>
+                <policyitem type="copyright" name="AsNumpy Contributors" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc=""/>
+                <policyitem type="copyright" name="AISS Group at Harbin Institute of Technology" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc=""/>
+                <policyitem type="copyright" name="ISE Group at Harbin Institute of Technology" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc=""/>
+                <policyitem type="filetype" name="!binary" path=".*" rule="must" group="defaultGroup" filefilter="binaryFileTypePolicyFilter" desc=""/>
+            </policy>
+        </policylist>
+        <filefilterlist>
+            <filefilter name="defaultPolicyFilter" desc="Filters for compatibility, license header policies">
+                <filteritem type="filename" name="OAT.xml" desc="OAT configuration itself"/>
+                <filteritem type="filename" name=".gitignore" desc="Git configuration file"/>
+                <filteritem type="filename" name=".gitmodules" desc="Git submodule configuration"/>
+                <filteritem type="filename" name="*.yml" desc="YAML configuration files, no license header required"/>
+                <filteritem type="filename" name="*.yaml" desc="YAML configuration files, no license header required"/>
+                <filteritem type="filename" name="*.toml" desc="TOML configuration files, no license header required"/>
+                <filteritem type="filename" name="*.json" desc="JSON configuration files, no license header required"/>
+                <filteritem type="filename" name="*.txt" desc="Plain text files, no license header required"/>
+                <filteritem type="filename" name="*.md" desc="Markdown documentation, no license header required"/>
+                <filteritem type="filename" name="requirements*.txt" desc="Dependency manifest files, no license header required"/>
+            </filefilter>
+            <filefilter name="copyrightPolicyFilter" desc="Filters for copyright header policies">
+                <filteritem type="filename" name=".gitignore" desc="Git configuration file"/>
+                <filteritem type="filename" name=".gitmodules" desc="Git submodule configuration"/>
+                <filteritem type="filename" name="*.yml" desc="YAML configuration files, no copyright header required"/>
+                <filteritem type="filename" name="*.yaml" desc="YAML configuration files, no copyright header required"/>
+                <filteritem type="filename" name="*.toml" desc="TOML configuration files, no copyright header required"/>
+                <filteritem type="filename" name="*.json" desc="JSON configuration files, no copyright header required"/>
+                <filteritem type="filename" name="*.txt" desc="Plain text files, no copyright header required"/>
+                <filteritem type="filename" name="*.md" desc="Markdown documentation, no copyright header required"/>
+            </filefilter>
+            <filefilter name="licenseFileNamePolicyFilter" desc="Filters for LICENSE file policies">
+                <filteritem type="filename" name="*.yml" desc="YAML configuration files, no license header required"/>
+                <filteritem type="filename" name="*.yaml" desc="YAML configuration files, no license header required"/>
+                <filteritem type="filename" name="*.txt" desc="Plain text files, no license header required"/>
+                <filteritem type="filename" name="*.md" desc="Markdown documentation, no license header required"/>
+            </filefilter>
+            <filefilter name="readmeFileNamePolicyFilter" desc="Filters for README file policies">
+            </filefilter>
+            <filefilter name="readmeOpenSourcefileNamePolicyFilter" desc="Filters for README.OpenSource file policies">
+            </filefilter>
+            <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
+                <filteritem type="filename" name="*.png" desc="PNG image files for documentation"/>
+                <filteritem type="filename" name="*.jpg" desc="JPEG image files for documentation"/>
+                <filteritem type="filename" name="*.ico" desc="Icon files for documentation"/>
+                <filteritem type="filename" name="*.whl" desc="Python wheel artifacts"/>
+            </filefilter>
+        </filefilterlist>
+        <licensematcherlist>
+            <licensematcher name="Apache-2.0" desc="Apache License 2.0">
+                <licensetext name="
+                    Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+                    you may not use this file except in compliance with the License.
+                    You may obtain a copy of the License at
+                " desc=""/>
+            </licensematcher>
+            <licensematcher name="CANN-2.0" desc="License for CANN Open Software">
+                <licensetext name="
+                    This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+                    CANN Open Software License Agreement Version 2.0 (the &quot;License&quot;).
+                    Please refer to the License for details. You may not use this file except in compliance with the License.
+                    THIS SOFTWARE IS PROVIDED ON AN &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+                    INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+                    See LICENSE in the root of the software repository for the full text of the License.
+                " desc=""/>
+            </licensematcher>
+        </licensematcherlist>
+    </oatconfig>
+</configuration>
