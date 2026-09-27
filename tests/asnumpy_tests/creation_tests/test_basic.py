@@ -25,6 +25,7 @@
 
 import numpy
 
+import asnumpy as ap
 from asnumpy import testing
 
 # ========== 基础创建函数测试 ==========
@@ -62,14 +63,16 @@ def test_ones(xp, dtype):
 
 
 @testing.for_float_dtypes()
-@testing.numpy_asnumpy_array_equal()
-def test_empty(xp, dtype):
+def test_empty(dtype):
     """测试empty函数
 
     测试浮点类型（默认排除 float16）
-    注意：用zeros代替empty以便比较结果
     """
-    return xp.zeros((2, 3), dtype=dtype)
+    expected = numpy.empty((2, 3), dtype=dtype)
+    actual = ap.empty((2, 3), dtype=dtype)
+
+    assert actual.shape == expected.shape
+    assert actual.dtype == expected.dtype
 
 
 def test_linspace_int64_preserves_dtype():
