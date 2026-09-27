@@ -30,6 +30,8 @@
 
 import numpy
 
+import asnumpy as ap
+
 from asnumpy import testing
 
 # ========== zeros_like 测试 ==========
@@ -115,24 +117,30 @@ def test_ones_like_large(xp, dtype):
 
 
 @testing.for_float_dtypes()
-@testing.numpy_asnumpy_array_equal()
-def test_empty_like(xp, dtype):
+def test_empty_like(dtype):
     """测试empty_like - 基本功能
 
-    注意：empty返回未初始化内存，使用zeros_like代替以便比较
     API差异：asnumpy需要显式传递dtype参数
     """
-    a = testing.shaped_random((2, 3), dtype=dtype, seed=42, xp=xp)
-    # 使用zeros_like代替empty_like用于结果比较
-    return xp.zeros_like(a, dtype=dtype)
+    numpy_prototype = numpy.zeros((2, 3), dtype=dtype)
+    asnumpy_prototype = ap.zeros((2, 3), dtype=dtype)
+    expected = numpy.empty_like(numpy_prototype, dtype=dtype)
+    actual = ap.empty_like(asnumpy_prototype, dtype=dtype)
+
+    assert actual.shape == expected.shape
+    assert actual.dtype == expected.dtype
 
 
 @testing.for_float_dtypes()
-@testing.numpy_asnumpy_array_equal()
-def test_empty_like_shape(xp, dtype):
+def test_empty_like_shape(dtype):
     """测试empty_like - 验证形状正确性"""
-    a = testing.shaped_random((5, 6, 7), dtype=dtype, seed=99, xp=xp)
-    return xp.zeros_like(a, dtype=dtype)
+    numpy_prototype = numpy.zeros((5, 6, 7), dtype=dtype)
+    asnumpy_prototype = ap.zeros((5, 6, 7), dtype=dtype)
+    expected = numpy.empty_like(numpy_prototype, dtype=dtype)
+    actual = ap.empty_like(asnumpy_prototype, dtype=dtype)
+
+    assert actual.shape == expected.shape
+    assert actual.dtype == expected.dtype
 
 
 # ========== eye 测试 ==========
