@@ -94,7 +94,6 @@ stages:
         name: PreSmoke_X86
         uses: .gitcode/workflows/smoke_action.yml
         with:
-          task_name: 'PreSmoke_X86'
           arch: 'x64'
           package_name: 'cann-asnumpy-linux-x86_64.whl'
     pre:

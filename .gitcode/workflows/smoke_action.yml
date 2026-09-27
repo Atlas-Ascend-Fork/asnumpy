@@ -3,9 +3,6 @@ name: smoke_action
 on:
   workflow_call:
     inputs:
-      task_name:
-        required: true
-        type: string
       arch:
         required: true
         type: string

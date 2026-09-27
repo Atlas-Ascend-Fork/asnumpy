@@ -13,10 +13,6 @@ on:
         required: false
         type: string
         default: 'x64'
-      python_bin:
-        required: false
-        type: string
-        default: 'python3'
       ref:
         required: true
         type: string
@@ -70,7 +66,6 @@ jobs:
             cd ${{ steps.process_checkout.outputs.path }}
             export task_name=${{ inputs.task_name }}
             export target_branch=${{ env.TARGET_BRANCH }}
-            export PYTHON_BIN='${{ inputs.python_bin }}'
             BuildAccelerate bash compile.sh
           AC_SERVER_IP: ${{ vars.AC_SERVER_IP }}
       -

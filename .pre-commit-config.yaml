@@ -85,7 +85,7 @@ repos:
 
   # Documentation and configuration spelling. Project terms are allowlisted.
   - repo: https://gitcode.com/gh_mirrors/co/codespell
-    rev: v2.4.1
+    rev: v2.4.3
     hooks:
       - id: codespell
         args: [-L, "CANN,cann,AsNumpy,asnumpy"]
