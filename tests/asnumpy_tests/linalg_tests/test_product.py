@@ -23,6 +23,7 @@
 4. 向量点积: vdot
 5. 矩阵乘法: matmul
 6. 矩阵幂: matrix_power
+7. 爱因斯坦求和约定: einsum
 
 优化维度：
 - FP32/FP64 精度验证
@@ -479,3 +480,94 @@ def test_matrix_power_empty(xp, dtype):
     """空矩阵: 空输入"""
     a = _create_array(xp, numpy.zeros((0, 0)), dtype)
     return xp.linalg.matrix_power(a, 0)
+
+
+# ==========================================================================
+# 7. einsum 爱因斯坦求和约定测试
+# ==========================================================================
+
+
+# ---------- 7.1 基础功能: 外积模式 "a,b->ab" ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-5)
+def test_einsum_outer_basic(xp, dtype):
+    """外积模式: (3,) × (2,) → (3,2)"""
+    a = _create_array(xp, [1.0, 2.0, 3.0], dtype)
+    b = _create_array(xp, [4.0, 5.0], dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-5)
+def test_einsum_outer_asymmetric(xp, dtype):
+    """外积模式: 非对称长度 (3,) × (5,) → (3,5)"""
+    a = _create_array(xp, [1.0, -2.0, 3.0], dtype)
+    b = _create_array(xp, [4.0, 5.0, -6.0, 7.0, 8.0], dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-5)
+def test_einsum_outer_zero_and_negative(xp, dtype):
+    """外积模式: 含零与负数"""
+    a = _create_array(xp, [0.0, -1.5, 2.5], dtype)
+    b = _create_array(xp, [-3.0, 0.0, 4.0], dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+# ---------- 7.2 FP32 精度验证 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-4, atol=1e-4)
+def test_einsum_outer_fp32_precision(xp, dtype):
+    """FP32 精度: 随机向量外积"""
+    numpy.random.seed(88)
+    a_data = numpy.random.uniform(-3, 3, (4,)).astype(dtype)
+    b_data = numpy.random.uniform(-3, 3, (5,)).astype(dtype)
+    a = _create_array(xp, a_data, dtype)
+    b = _create_array(xp, b_data, dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+# ---------- 7.3 整数 dtype ----------
+@testing.for_dtypes([numpy.int32, numpy.int64])
+@testing.numpy_asnumpy_array_equal()
+def test_einsum_outer_int(xp, dtype):
+    """整数 dtype: 外积精确匹配"""
+    a = _create_array(xp, [1, -2, 3, 4], dtype)
+    b = _create_array(xp, [5, -6, 7], dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+# ---------- 7.4 空矩阵输入 ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-5)
+def test_einsum_outer_empty(xp, dtype):
+    """空矩阵: 空向量外积 → (0,0)"""
+    a = _create_array(xp, [], dtype)
+    b = _create_array(xp, [], dtype)
+    return xp.einsum("a,b->ab", a, b)
+
+
+# ---------- 7.5 注意力模式 "abcd,abced->abce" (要求 e == d) ----------
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-4, atol=1e-4)
+def test_einsum_attention_basic(xp, dtype):
+    """注意力模式: (2,3,4,5) × (2,3,4,5,5) → (2,3,4,5)"""
+    numpy.random.seed(99)
+    x1_data = numpy.random.uniform(-1, 1, (2, 3, 4, 5)).astype(dtype)
+    x2_data = numpy.random.uniform(-1, 1, (2, 3, 4, 5, 5)).astype(dtype)
+    x1 = _create_array(xp, x1_data, dtype)
+    x2 = _create_array(xp, x2_data, dtype)
+    return xp.einsum("abcd,abced->abce", x1, x2)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose(rtol=1e-4, atol=1e-4)
+def test_einsum_attention_fp32_precision(xp, dtype):
+    """注意力模式 FP32 精度: 随机数据批量缩并"""
+    numpy.random.seed(100)
+    x1_data = numpy.random.uniform(-2, 2, (3, 2, 4, 6)).astype(dtype)
+    x2_data = numpy.random.uniform(-2, 2, (3, 2, 4, 6, 6)).astype(dtype)
+    x1 = _create_array(xp, x1_data, dtype)
+    x2 = _create_array(xp, x2_data, dtype)
+    return xp.einsum("abcd,abced->abce", x1, x2)

@@ -24,7 +24,7 @@ jobs:
         identifier: process_checkout
         uses: checkout
         with:
-          token: ${{secrets.GIT_TOKEN}}
+          allow-unsafe-pr-checkout: true
           ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
       -
         name: download
