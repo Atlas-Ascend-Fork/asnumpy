@@ -31,7 +31,6 @@
 import numpy
 
 import asnumpy as ap
-
 from asnumpy import testing
 
 # ========== zeros_like 测试 ==========

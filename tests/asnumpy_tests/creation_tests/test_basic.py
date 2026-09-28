@@ -26,7 +26,6 @@
 import numpy
 
 import asnumpy as ap
-
 from asnumpy import testing
 
 # ========== 基础创建函数测试 ==========
