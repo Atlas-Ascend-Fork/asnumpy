@@ -170,6 +170,26 @@ def test_arithmetic_broadcasting(xp, dtype):
     return xp.add(a, b)
 
 
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_array_equal()
+def test_add_empty_array_broadcast_with_singleton(xp, dtype):
+    empty = _create_array(xp, numpy.empty((0,), dtype=dtype), dtype)
+    singleton = _create_array(xp, numpy.ones((1,), dtype=dtype), dtype)
+    result = xp.add(empty, singleton)
+    assert result.shape == (0,)
+    return result
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_array_equal()
+def test_add_singleton_broadcast_with_empty_array(xp, dtype):
+    singleton = _create_array(xp, numpy.ones((1,), dtype=dtype), dtype)
+    empty = _create_array(xp, numpy.empty((0,), dtype=dtype), dtype)
+    result = xp.add(singleton, empty)
+    assert result.shape == (0,)
+    return result
+
+
 # ========== 5. True_divide 与 Mod ==========
 
 

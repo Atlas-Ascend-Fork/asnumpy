@@ -392,7 +392,7 @@ std::vector<int64_t> GetBroadcastShape(const NPUArray& a, const NPUArray& b) {
         int64_t dimB = (i < ndimB) ? shapeB[ndimB - 1 - i] : 1;
 
         if (dimA == dimB || dimA == 1 || dimB == 1) {
-            result[ndimOut - 1 - i] = std::max(dimA, dimB);
+            result[ndimOut - 1 - i] = (dimA == 1) ? dimB : dimA;
         } else {
             throw std::invalid_argument("[npu_array.cpp](GetBroadcastShape) shapes are not broadcastable. "
                                         "dimA=" +
