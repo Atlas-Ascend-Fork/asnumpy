@@ -97,12 +97,12 @@ NPUArray Floor(const NPUArray& x, std::optional<py::dtype> dtype = std::nullopt)
 NPUArray Ceil(const NPUArray& x, std::optional<py::dtype> dtype = std::nullopt);
 
 /**
- * @brief Compute element-wise ceiling of the input.
+ * @brief Compute the truncation of each element in the input array.
  *
- * Equivalent to numpy.ceil(x), returns the smallest integer greater than or equal to each element.
+ * Equivalent to numpy.trunc(x), truncates each element towards zero.
  *
  * @param x NPUArray, input array (floating-point type)
- * @return NPUArray Element-wise ceiling values of x
+ * @return NPUArray Element-wise truncated values of x
  */
 NPUArray Trunc(const NPUArray& x, std::optional<py::dtype> dtype = std::nullopt);
 
