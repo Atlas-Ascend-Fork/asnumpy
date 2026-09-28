@@ -25,9 +25,7 @@ class TestDirectExceptionAssertions(unittest.TestCase):
 
     def test_assert_raises_regex_does_not_match_its_own_failure(self):
         with self.assertRaisesRegex(AssertionError, "no exception was raised"):
-            _ASSERTIONS.assert_raises_regex(
-                AssertionError, "no exception was raised", lambda: None
-            )
+            _ASSERTIONS.assert_raises_regex(AssertionError, "no exception was raised", lambda: None)
 
     def test_assert_raises_accepts_target_assertion(self):
         self.assertIsNone(_ASSERTIONS.assert_raises(AssertionError, _raise_target_assertion))
