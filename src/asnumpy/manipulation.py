@@ -27,7 +27,13 @@ Signatures, keyword names and error types mirror NumPy, so ``import asnumpy as n
 drop-in replacement for the supported subset.
 """
 
-from __future__ import annotations
+__all__ = [
+    "concatenate",
+    "expand_dims",
+    "squeeze",
+    "stack",
+    "where",
+]
 
 from collections.abc import Sequence
 
@@ -45,14 +51,6 @@ from ._core.array import (
 )
 from ._types import ArrayLike, AxisLike, AxisOptional
 from .utils import ndarray
-
-__all__ = [
-    "concatenate",
-    "expand_dims",
-    "squeeze",
-    "stack",
-    "where",
-]
 
 
 def _as_npu(value: ArrayLike, like: ndarray | None = None) -> ndarray:
