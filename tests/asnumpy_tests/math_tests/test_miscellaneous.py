@@ -55,13 +55,9 @@ def test_absolute_unsupported_xfail(xp, dtype):
     return xp.absolute(a)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] dtype mismatch: fabs(int8/uint8) NumPy→float16, asnumpy→float32",
-    strict=True,
-)
 @testing.for_dtypes([numpy.int8, numpy.uint8])
 @testing.numpy_asnumpy_allclose()
-def test_fabs_float16_promote_xfail(xp, dtype):
+def test_fabs_float16_promote(xp, dtype):
     a = _create_array(xp, [1, 2], dtype)
     return xp.fabs(a)
 
@@ -206,9 +202,8 @@ def test_sqrt_int_promotion(xp, dtype):
     return xp.sqrt(a)
 
 
-@pytest.mark.xfail(reason="[FIXABLE] Sqrt int8 输出 float32，NumPy 提升为 float16", strict=True)
 @testing.for_dtypes([numpy.int8])
 @testing.numpy_asnumpy_allclose(rtol=1e-3, atol=1e-3)
-def test_sqrt_int8_xfail(xp, dtype):
+def test_sqrt_int8_promotion(xp, dtype):
     a = _create_array(xp, [1, 4], dtype)
     return xp.sqrt(a)

@@ -75,11 +75,10 @@ def test_prod_axis_none_xfail(xp, dtype):
 # ========== 3. 归约 Dtype 限制 (XFAIL) ==========
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] dtype promotion: sum/prod keeps original dtype, NumPy promotes", strict=True
-)
-@testing.for_dtypes([numpy.int8, numpy.int16, numpy.int32, numpy.uint8])
-def test_sum_int_mismatch_xfail(xp, dtype):
+# uint8 不在参数中: aclnnReduceSum 不支持 uint64 输出 (CANN 上游限制)
+@testing.for_dtypes([numpy.int8, numpy.int16, numpy.int32])
+@testing.numpy_asnumpy_allclose()
+def test_sum_int_promotion(xp, dtype):
     a = _create_array(xp, [1, 2], dtype)
     return xp.sum(a, axis=0, keepdims=False)
 
@@ -140,11 +139,10 @@ def test_cumprod_basic(xp, dtype):
     return xp.cumprod(a, axis=0)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] dtype promotion: cumulative ops keep int dtype, NumPy promotes", strict=True
-)
-@testing.for_dtypes([numpy.int8, numpy.int16, numpy.int32, numpy.uint8])
-def test_cumsum_int_mismatch_xfail(xp, dtype):
+# uint8 不在参数中: aclnnCumsum 不支持 uint64 输出 (CANN 上游限制)
+@testing.for_dtypes([numpy.int8, numpy.int16, numpy.int32])
+@testing.numpy_asnumpy_allclose()
+def test_cumsum_int_promotion(xp, dtype):
     a = _create_array(xp, [1, 2], dtype)
     return xp.cumsum(a, axis=0)
 
