@@ -1,0 +1,67 @@
+name: smoke_action
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        required: true
+        type: string
+        default: 'x64'
+      package_name:
+        required: true
+        type: string
+
+jobs:
+  JOB_smoke:
+    name: PreSmoke
+    timeout-minutes: 30
+    steps:
+      -
+        name: Checkout
+        identifier: process_checkout
+        uses: checkout
+        with:
+          allow-unsafe-pr-checkout: true
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
+      -
+        name: download
+        uses: obs-download
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{ secrets.AK }}
+          secret-key: ${{ secrets.SK }}
+          key: |
+            ${{ env.obs_path }}/pr_filelist.txt
+            ${{ env.obs_path }}/pr_filelist_mod.txt
+            ${{ env.obs_path }}/update_file_detail.txt
+            ${{ env.obs_path }}/pre_smoke.sh
+          path: ${{ steps.process_checkout.outputs.path }}
+      -
+        name: smoke executor
+        run: |
+          export obs_path=${{ env.obs_path }}
+          export repo_name=${{env.repo_name}}
+          export pr_id=${{ env.MERGE_ID }}
+          export AK=${{secrets.AK}}
+          export SK=${{secrets.SK}}
+          export package_name=${{ inputs.package_name }}
+          export WORKSPACE=${{ steps.process_checkout.outputs.path }}
+          bash ${{ steps.process_checkout.outputs.path }}/pre_smoke.sh
+      - name: upload
+        uses: obs-upload
+        if: ${{ always() }}
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{ secrets.AK }}
+          secret-key: ${{ secrets.SK }}
+          artifact-path: "${{ steps.process_checkout.outputs.path }}/slog*.tar.gz"
+          object-prefix: ${{ env.obs_path }}/presmoke/${{ inputs.arch }}/plog/
+    if: env.TARGET_BRANCH == 'master'
+    runs-on:
+      - self-hosted
+      - npu=1
+      - smoke=204
+    container:
+      image: ${{ env.compile_image }}

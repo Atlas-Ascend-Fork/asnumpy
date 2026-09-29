@@ -1,149 +1,78 @@
-name: PR-pipeline_asnumpy
+#!/bin/bash
+# -----------------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -----------------------------------------------------------------------------------------------------------
 
-concurrency:
-  max: 15
-  exceed-action: QUEUE
-  enable: true
-  preemption:
-    enable: true
-    events: [mr_id]
+  set -Eeuo pipefail
 
-on:
-  pr_comment:
-      types: [ created ]
-      keyword: '^(?:\/)?compile*'
-  pull_request_comment:
-    types: [created]
-    branches: [ '**' ]
-    comments: [ '^(?:\/)?compile*' ]
+  echo "start run test case, please wait ..."
+  cd ${WORKSPACE}
 
-env:
-  org_name: ${{ vars.ORG_NAME }}
-  repo_name: ${{ atomgit.event.repository.name }}
-  MERGE_ID: ${{ atomgit.event.pull_request.number }}
-  TARGET_BRANCH: ${{atomgit.base_ref}}
-  SOURCE_BRANCH: ${{atomgit.head_ref}}
-  obs_path: "${{ env.org_name }}/${{ env.repo_name }}/ci/package/${{ env.MERGE_ID }}"
-  obs_smoke_path_A2: "${{ env.obs_path }}/presmoke/2"
-  online: ${{ vars.APPLY_LABEL }}
+  export ASCEND_GLOBAL_LOG_LEVEL=2
+  export ASCEND_SLOG_PRINT_TO_STDOUT=0
 
-stages:
-  stage1:
-    name: PreBuild
-    jobs:
-      JOB_image:
-        name: Test_image
-        steps:
-          - name: revise_image
-            identifier: revise_image
-            uses: cann/.gitcode/actions/revise-img@master
-            with:
-              repo_name: ${{ env.repo_name }}
-              target_branch: ${{ env.TARGET_BRANCH }}
-              comment: ${{ atomgit.event.comment.body }}
-              token: ${{ secrets.TESTTOKEN }}
-        runs-on: ['self-hosted', 'arch=x64', 'spec=small']
-        container:
-          image: swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:k8s_v1.1006
-      JOB_pre:
-        name: Test_PreBuild
-        uses: cann/.gitcode/.gitcode/workflows/pre_action.yml@master
-    pre:
-    - type: auto
-    fail-fast: true
-  stage2:
-    name: Compile
-    jobs:
-      JOB_codecheck:
-        name: CodeCheck
-        uses: cann/.gitcode/.gitcode/workflows/codecheck_action.yml@master
-        with:
-          precommit_image_version: ${{ jobs.JOB_image.outputs.precommit }}
-          codecheck_image_version: ${{ jobs.JOB_image.outputs.codecheck }}
-      JOB_x86_compile:
-        name: Compile_Ascend_X86
-        uses: .gitcode/workflows/compile_action.yml
-        with:
-          task_name: 'Compile_Ascend_X86'
-          image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_X86 }}
-          arch: 'x64'
-          package_name: 'cann-asnumpy-linux-x86_64.whl'
-      JOB_arm_compile:
-        name: Compile_Ascend_ARM
-        uses: .gitcode/workflows/compile_action.yml
-        with:
-          task_name: 'Compile_Ascend_ARM'
-          image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_ARM }}
-          arch: 'arm64'
-          package_name: 'cann-asnumpy-linux-arm.whl'
-      JOB_staticcheck_md_check:
-        name: CodeCheck_staticcheck_md_check
-        uses: .gitcode/workflows/staticcheck_action.yml
-        with:
-          check_type: 'md_check'
-          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-    pre:
-    - type: auto
-    fail-fast: false
-  stage3:
-    name: PreSmoke
-    jobs:
-      A2_smoke:
-        name: PreSmoke_A2
-        timeout-minutes: 30
-        steps:
-          -
-            name: Checkout
-            identifier: process_checkout
-            uses: checkout
-            with:
-              allow-unsafe-pr-checkout: true
-              ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
-          -
-            name: download
-            uses: obs-download
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              access-key: ${{ secrets.AK }}
-              secret-key: ${{ secrets.SK }}
-              key: |
-                ${{ env.obs_path }}/pr_filelist.txt
-                ${{ env.obs_path }}/pr_filelist_mod.txt
-                ${{ env.obs_path }}/update_file_detail.txt
-                ${{ env.obs_path }}/pre_smoke.sh
-              path: ${{ steps.process_checkout.outputs.path }}
-          -
-            name: smoke executor
-            run: |
-              export arm_run_url=${{jobs.JOB_arm_compile_ubuntu24.outputs.arm_run_url}}
-              export obs_smoke_path=${{env.obs_smoke_path_A2}}
-              export obs_path=${{ env.obs_path }}
-              export repo_name=${{env.repo_name}}
-              export pr_id=${{ env.MERGE_ID }}
-              export AK=${{secrets.AK}}
-              export SK=${{secrets.SK}}
-              export WORKSPACE=${{ steps.process_checkout.outputs.path }}
-              bash ${{ steps.process_checkout.outputs.path }}/pre_smoke.sh
-          - name: upload
-            uses: obs-upload
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              access-key: ${{ secrets.AK }}
-              secret-key: ${{ secrets.SK }}
-              artifact-path: "${{ steps.process_checkout.outputs.path }}/slog*.tar.gz"
-              object-prefix: ${obs_smoke_path}/plog/
-        if: env.TARGET_BRANCH == 'master'
-        runs-on: ['self-hosted','npu=2','smoke=204']
-        container:
-          image: swr.cn-south-1.myhuaweicloud.com/pre_smoke/ubuntu24.04_arm:mindspore_A2_conda_v1.1010
-    pre:
-    - type: auto
-    fail-fast: true
+  log() {
+  local dt
+  dt=$(date '+%Y%m%d.%H%M%S')
+  echo "===================================================================="
+echo "$dt : $*"
+  echo "===================================================================="
+}
 
-post:
-  jobs:
-    job_post:
-      name: Test_post
-      uses: cann/.gitcode/.gitcode/workflows/post_action.yml@master
+  log "init test case, please wait ..."
+
+  export PIP_INDEX_URL="${PIP_INDEX_URL:-https://repo.huaweicloud.com/repository/pypi/simple}"
+
+  apt-get update
+  apt-get install -y wget unzip
+  python3 -m pip install --upgrade pip
+  python3 -m pip install pytest pytest-xdist
+
+  package_name="${package_name:-cann-asnumpy-linux-arm.whl}"
+  wget "https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/${package_name}"
+  ls
+
+  # pip requires the canonical wheel filename; recover it from the wheel metadata
+  # (version + full ABI/platform tag) so this works for any Python/arch combination.
+  VERSION=$(unzip -p "${package_name}" '*.dist-info/METADATA' | grep -m1 "^Version:" | awk '{print $2}' | tr -d '\r')
+  TAG=$(unzip -p "${package_name}" '*.dist-info/WHEEL' | grep -m1 "^Tag:" | awk '{print $2}' | tr -d '\r')
+echo "版本号: ${VERSION}  标签: ${TAG}"
+  wheel_file="asnumpy-${VERSION}-${TAG}.whl"
+  mv "${package_name}" "${wheel_file}"
+  python3 -m pip install "${wheel_file}"
+
+  set +e
+  python3 -m pytest tests/ -n 8 -v 2>&1 | tee -a ./run_test.log
+  pytest_exit_code=${PIPESTATUS[0]}
+  set -e
+
+  echo "pip3 install obs"
+  python3 -m pip install esdk-obs-python \
+  --trusted-host repo.huaweicloud.com \
+  -i https://repo.huaweicloud.com/repository/pypi/simple
+
+  # ==============================
+  # 打包log
+  # ==============================
+  mkdir -p /root/ascend/log
+  slog_name="slog.tar.gz"
+  tar -zcf "${slog_name}" -C /root/ascend log
+
+  # ==============================
+  # 检查测试结果
+  # ==============================
+  log "checking test results ..."
+
+  date_time=`date +%Y%m%d`"."`date +%H%M%S`
+  if grep -w -e "passed" "./run_test.log"; then
+echo "$date_time : run test case success"
+  else
+echo "$date_time : run test case failed"
+  exit 1
+  fi
