@@ -286,9 +286,9 @@ def _sin_fallback(x, dtype=None):
 
 
 sin = _create_ufunc(
-    'sin',
-    (('f->f', _sin, False), ('e->e', _sin, False), ('d->d', _sin, False)),
-    doc='Compute sine element-wise.',
+    "sin",
+    (("f->f", _sin, False), ("e->e", _sin, False), ("d->d", _sin, False)),
+    doc="Compute sine element-wise.",
     fallback=_sin_fallback,
 )
 
@@ -359,10 +359,10 @@ def clip(a: ArrayLike, a_min: ArrayLike | float, a_max: ArrayLike | float) -> nd
 
 
 def nan_to_num(
-    x: ArrayLike,
-    nan: float = 0.0,
-    posinf: float | None = None,
-    neginf: float | None = None,
+        x: ArrayLike,
+        nan: float = 0.0,
+        posinf: float | None = None,
+        neginf: float | None = None,
 ) -> ndarray:
     return ndarray(_nan_to_num(x, nan, posinf, neginf))
 
@@ -390,10 +390,10 @@ def _add_fallback(x1, x2, dtype=None):
 
 
 add = _create_ufunc(
-    'add',
-    (('ff->f', _add), ('dd->d', _add)),
+    "add",
+    (("ff->f", _add), ("dd->d", _add)),
     fallback=_add_fallback,
-    doc='Add arguments element-wise.',
+    doc="Add arguments element-wise.",
 )
 
 
@@ -411,9 +411,9 @@ def _negative_fallback(x, dtype=None):
 
 
 negative = _create_ufunc(
-    'negative',
-    (('f->f', _negative), ('d->d', _negative), ('i->i', _negative)),
-    doc='Numerical negative, element-wise.',
+    "negative",
+    (("f->f", _negative), ("d->d", _negative), ("i->i", _negative)),
+    doc="Numerical negative, element-wise.",
     fallback=_negative_fallback,
 )
 
@@ -471,10 +471,10 @@ def power(x1: ArrayLike, x2: ArrayLike, dtype: DTypeLike = None) -> ndarray:
 
 # Sums, products, differences
 def prod(
-    a: ArrayLike,
-    axis: AxisOptional = None,
-    keepdims: bool = False,
-    dtype: DTypeLike = None,
+        a: ArrayLike,
+        axis: AxisOptional = None,
+        keepdims: bool = False,
+        dtype: DTypeLike = None,
 ) -> ndarray | float:
     if axis is None:
         return _prod(a)  # type: ignore[no-any-return]
@@ -482,10 +482,10 @@ def prod(
 
 
 def sum(
-    a: ArrayLike,
-    axis: AxisOptional = None,
-    keepdims: bool = False,
-    dtype: DTypeLike = None,
+        a: ArrayLike,
+        axis: AxisOptional = None,
+        keepdims: bool = False,
+        dtype: DTypeLike = None,
 ) -> ndarray | float:
     if axis is None:
         return _sum(a)  # type: ignore[no-any-return]
@@ -493,10 +493,10 @@ def sum(
 
 
 def nanprod(
-    a: ArrayLike,
-    axis: AxisOptional = None,
-    keepdims: bool = False,
-    dtype: DTypeLike = None,
+        a: ArrayLike,
+        axis: AxisOptional = None,
+        keepdims: bool = False,
+        dtype: DTypeLike = None,
 ) -> ndarray | float:
     if axis is None:
         return _nanprod(a)  # type: ignore[no-any-return]
@@ -504,10 +504,10 @@ def nanprod(
 
 
 def nansum(
-    a: ArrayLike,
-    axis: AxisOptional = None,
-    keepdims: bool = False,
-    dtype: DTypeLike = None,
+        a: ArrayLike,
+        axis: AxisOptional = None,
+        keepdims: bool = False,
+        dtype: DTypeLike = None,
 ) -> ndarray | float:
     if axis is None:
         return _nansum(a)  # type: ignore[no-any-return]
