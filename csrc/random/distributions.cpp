@@ -49,11 +49,25 @@
 
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <memory>
 #include <pybind11/attr.h>
 #include <random>
 #include <stdexcept>
 
 namespace asnumpy {
+namespace {
+
+using AclScalarHandle = std::unique_ptr<aclScalar, decltype(&aclDestroyScalar)>;
+
+AclScalarHandle CreateScalar(const void* value, aclDataType dtype) {
+    AclScalarHandle scalar(aclCreateScalar(value, dtype), &aclDestroyScalar);
+    if (!scalar) {
+        throw std::runtime_error("aclCreateScalar returned null");
+    }
+    return scalar;
+}
+
+} // namespace
 
 NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     if (a <= 0)
@@ -81,13 +95,13 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     auto rsubs_temp = NPUArray(size, ACL_FLOAT);
     float scalar1 = 1.0f;
     float scalar2 = 1.0f;
-    aclScalar* other = aclCreateScalar(&scalar1, ACL_FLOAT);
-    aclScalar* alpha = aclCreateScalar(&scalar2, ACL_FLOAT);
+    auto other = CreateScalar(&scalar1, ACL_FLOAT);
+    auto alpha = CreateScalar(&scalar2, ACL_FLOAT);
     uint64_t rsubs_workspaceSize = 0;
     aclOpExecutor* rsubs_executor;
     LOG_DEBUG("aclnnRsubs start: shape={}", detail::FormatShape(size));
-    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other, alpha, rsubs_temp.tensorPtr, &rsubs_workspaceSize,
-                                       &rsubs_executor);
+    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other.get(), alpha.get(), rsubs_temp.tensorPtr,
+                                       &rsubs_workspaceSize, &rsubs_executor);
     ACLNN_CHECK(error, "aclnnRsubsGetWorkspaceSize");
     AclWorkspace rsubs_workspace(rsubs_workspaceSize);
     error = aclnnRsubs(rsubs_workspace.get(), rsubs_workspaceSize, rsubs_executor, nullptr);
@@ -98,12 +112,12 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
 
     auto result = NPUArray(size, ACL_FLOAT);
     float scalar3 = 1.0f / a;
-    aclScalar* exponent = aclCreateScalar(&scalar3, ACL_FLOAT);
+    auto exponent = CreateScalar(&scalar3, ACL_FLOAT);
     uint64_t exp_workspaceSize = 0;
     aclOpExecutor* exp_executor;
     LOG_DEBUG("aclnnPowTensorScalar start: shape={}, a={}", detail::FormatShape(size), a);
-    error = aclnnPowTensorScalarGetWorkspaceSize(rsubs_temp.tensorPtr, exponent, result.tensorPtr, &exp_workspaceSize,
-                                                 &exp_executor);
+    error = aclnnPowTensorScalarGetWorkspaceSize(rsubs_temp.tensorPtr, exponent.get(), result.tensorPtr,
+                                                 &exp_workspaceSize, &exp_executor);
     ACLNN_CHECK(error, "aclnnPowTensorScalarGetWorkspaceSize");
     AclWorkspace exp_workspace(exp_workspaceSize);
     error = aclnnPowTensorScalar(exp_workspace.get(), exp_workspaceSize, exp_executor, nullptr);
@@ -127,7 +141,8 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     uint64_t sub_workspaceSize = 0;
     aclOpExecutor* sub_executor;
     LOG_DEBUG("aclnnInplaceSubs start: shape={}", detail::FormatShape(size));
-    error = aclnnInplaceSubsGetWorkspaceSize(result.tensorPtr, other, alpha, &sub_workspaceSize, &sub_executor);
+    error =
+        aclnnInplaceSubsGetWorkspaceSize(result.tensorPtr, other.get(), alpha.get(), &sub_workspaceSize, &sub_executor);
     ACLNN_CHECK(error, "aclnnInplaceSubsGetWorkspaceSize");
     AclWorkspace sub_workspace(sub_workspaceSize);
     error = aclnnInplaceSubs(sub_workspace.get(), sub_workspaceSize, sub_executor, nullptr);
@@ -161,13 +176,13 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     auto result = NPUArray(size, ACL_FLOAT);
     float scalar1 = 1.0f;
     float scalar2 = 1.0f;
-    aclScalar* other = aclCreateScalar(&scalar1, ACL_FLOAT);
-    aclScalar* alpha = aclCreateScalar(&scalar2, ACL_FLOAT);
+    auto other = CreateScalar(&scalar1, ACL_FLOAT);
+    auto alpha = CreateScalar(&scalar2, ACL_FLOAT);
     uint64_t rsubs_workspaceSize = 0;
     aclOpExecutor* rsubs_executor;
     LOG_DEBUG("aclnnRsubs start: shape={}", detail::FormatShape(size));
-    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other, alpha, result.tensorPtr, &rsubs_workspaceSize,
-                                       &rsubs_executor);
+    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other.get(), alpha.get(), result.tensorPtr,
+                                       &rsubs_workspaceSize, &rsubs_executor);
     ACLNN_CHECK(error, "aclnnRsubsGetWorkspaceSize");
     AclWorkspace rsubs_workspace(rsubs_workspaceSize);
     error = aclnnRsubs(rsubs_workspace.get(), rsubs_workspaceSize, rsubs_executor, nullptr);
@@ -189,11 +204,11 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     LOG_INFO("aclnnInplaceLog completed");
 
     float scalar3 = -2.0f;
-    aclScalar* mulnum = aclCreateScalar(&scalar3, ACL_FLOAT);
+    auto mulnum = CreateScalar(&scalar3, ACL_FLOAT);
     uint64_t muls_workspaceSize = 0;
     aclOpExecutor* muls_executor;
     LOG_DEBUG("aclnnInplaceMuls start: shape={}", detail::FormatShape(size));
-    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, mulnum, &muls_workspaceSize, &muls_executor);
+    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, mulnum.get(), &muls_workspaceSize, &muls_executor);
     ACLNN_CHECK(error, "aclnnInplaceMulsGetWorkspaceSize");
     AclWorkspace muls_workspace(muls_workspaceSize);
     error = aclnnInplaceMuls(muls_workspace.get(), muls_workspaceSize, muls_executor, nullptr);
@@ -214,11 +229,11 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
     LOG_INFO("aclnnInplaceSqrt completed");
 
-    aclScalar* muls = aclCreateScalar(&scale, ACL_FLOAT);
+    auto muls = CreateScalar(&scale, ACL_FLOAT);
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor;
     LOG_DEBUG("aclnnInplaceMuls start: shape={}, scale={}", detail::FormatShape(size), scale);
-    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, muls, &workspaceSize, &executor);
+    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, muls.get(), &workspaceSize, &executor);
     ACLNN_CHECK(error, "aclnnInplaceMulsGetWorkspaceSize");
     AclWorkspace workspace(workspaceSize);
     error = aclnnInplaceMuls(workspace.get(), workspaceSize, executor, nullptr);
@@ -319,12 +334,13 @@ NPUArray Generator_Standard_cauchy(const std::vector<int64_t>& size) {
 
     float scalar1 = 0.5f;
     float scalar2 = 1.0f;
-    aclScalar* other = aclCreateScalar(&scalar1, ACL_FLOAT);
-    aclScalar* alpha = aclCreateScalar(&scalar2, ACL_FLOAT);
+    auto other = CreateScalar(&scalar1, ACL_FLOAT);
+    auto alpha = CreateScalar(&scalar2, ACL_FLOAT);
     uint64_t subs_workspaceSize = 0;
     aclOpExecutor* subs_executor;
     LOG_DEBUG("aclnnInplaceSubs start: shape={}", detail::FormatShape(size));
-    error = aclnnInplaceSubsGetWorkspaceSize(result.tensorPtr, other, alpha, &subs_workspaceSize, &subs_executor);
+    error = aclnnInplaceSubsGetWorkspaceSize(result.tensorPtr, other.get(), alpha.get(), &subs_workspaceSize,
+                                             &subs_executor);
     ACLNN_CHECK(error, "aclnnInplaceSubsGetWorkspaceSize");
     AclWorkspace subs_workspace(subs_workspaceSize);
     error = aclnnInplaceSubs(subs_workspace.get(), subs_workspaceSize, subs_executor, nullptr);
@@ -334,11 +350,11 @@ NPUArray Generator_Standard_cauchy(const std::vector<int64_t>& size) {
     LOG_INFO("aclnnInplaceSubs completed");
 
     double PI = 3.141592653589793238462643383279502884197169399375105820974944;
-    aclScalar* pi = aclCreateScalar(&PI, ACL_DOUBLE);
+    auto pi = CreateScalar(&PI, ACL_DOUBLE);
     uint64_t muls_workspaceSize = 0;
     aclOpExecutor* muls_executor;
     LOG_DEBUG("aclnnInplaceMuls start: shape={}", detail::FormatShape(size));
-    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, pi, &muls_workspaceSize, &muls_executor);
+    error = aclnnInplaceMulsGetWorkspaceSize(result.tensorPtr, pi.get(), &muls_workspaceSize, &muls_executor);
     ACLNN_CHECK(error, "aclnnInplaceMulsGetWorkspaceSize");
     AclWorkspace muls_workspace(muls_workspaceSize);
     error = aclnnInplaceMuls(muls_workspace.get(), muls_workspaceSize, muls_executor, nullptr);
@@ -384,13 +400,13 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     auto rsubs_temp = NPUArray(size, ACL_FLOAT);
     float scalar1 = 1.0f;
     float scalar2 = 1.0f;
-    aclScalar* other1 = aclCreateScalar(&scalar1, ACL_FLOAT);
-    aclScalar* alpha = aclCreateScalar(&scalar2, ACL_FLOAT);
+    auto other1 = CreateScalar(&scalar1, ACL_FLOAT);
+    auto alpha = CreateScalar(&scalar2, ACL_FLOAT);
     uint64_t rsubs_workspaceSize1 = 0;
     aclOpExecutor* rsubs_executor1;
     LOG_DEBUG("aclnnRsubs start: shape={}", detail::FormatShape(size));
-    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other1, alpha, rsubs_temp.tensorPtr, &rsubs_workspaceSize1,
-                                       &rsubs_executor1);
+    error = aclnnRsubsGetWorkspaceSize(uni_temp.tensorPtr, other1.get(), alpha.get(), rsubs_temp.tensorPtr,
+                                       &rsubs_workspaceSize1, &rsubs_executor1);
     ACLNN_CHECK(error, "aclnnRsubsGetWorkspaceSize");
     AclWorkspace rsubs_workspace1(rsubs_workspaceSize1);
     error = aclnnRsubs(rsubs_workspace1.get(), rsubs_workspaceSize1, rsubs_executor1, nullptr);
@@ -413,12 +429,12 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
 
     auto result = NPUArray(size, ACL_FLOAT);
     float scalar3 = 0.0f;
-    aclScalar* other2 = aclCreateScalar(&scalar3, ACL_FLOAT);
+    auto other2 = CreateScalar(&scalar3, ACL_FLOAT);
     uint64_t rsubs_workspaceSize = 0;
     aclOpExecutor* rsubs_executor;
     LOG_DEBUG("aclnnRsubs start: shape={}", detail::FormatShape(size));
-    error = aclnnRsubsGetWorkspaceSize(rsubs_temp.tensorPtr, other2, alpha, result.tensorPtr, &rsubs_workspaceSize,
-                                       &rsubs_executor);
+    error = aclnnRsubsGetWorkspaceSize(rsubs_temp.tensorPtr, other2.get(), alpha.get(), result.tensorPtr,
+                                       &rsubs_workspaceSize, &rsubs_executor);
     ACLNN_CHECK(error, "aclnnRsubsGetWorkspaceSize");
     AclWorkspace rsubs_workspace(rsubs_workspaceSize);
     error = aclnnRsubs(rsubs_workspace.get(), rsubs_workspaceSize, rsubs_executor, nullptr);
@@ -428,11 +444,11 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     LOG_INFO("aclnnRsubs completed");
 
     float scalar4 = 1.0f / a;
-    aclScalar* exponent = aclCreateScalar(&scalar4, ACL_FLOAT);
+    auto exponent = CreateScalar(&scalar4, ACL_FLOAT);
     uint64_t exp_workspaceSize = 0;
     aclOpExecutor* exp_executor;
     LOG_DEBUG("aclnnPowTensorScalar start: shape={}, a={}", detail::FormatShape(size), a);
-    error = aclnnPowTensorScalarGetWorkspaceSize(result.tensorPtr, exponent, result.tensorPtr, &exp_workspaceSize,
+    error = aclnnPowTensorScalarGetWorkspaceSize(result.tensorPtr, exponent.get(), result.tensorPtr, &exp_workspaceSize,
                                                  &exp_executor);
     ACLNN_CHECK(error, "aclnnPowTensorScalarGetWorkspaceSize");
     AclWorkspace exp_workspace(exp_workspaceSize);
