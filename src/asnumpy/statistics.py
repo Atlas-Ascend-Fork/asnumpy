@@ -27,5 +27,8 @@ def mean(
     dtype: DTypeLike = None,
 ) -> ndarray | float:
     if axis is None:
-        return _mean(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
+        converted_dtype = _convert_dtype(dtype)
+        if keepdims and getattr(a, "ndim", 0) > 0:
+            return ndarray(_mean(a, keepdims, converted_dtype))
+        return _mean(a, converted_dtype)  # type: ignore[no-any-return]
     return ndarray(_mean(a, axis, keepdims, _convert_dtype(dtype)))

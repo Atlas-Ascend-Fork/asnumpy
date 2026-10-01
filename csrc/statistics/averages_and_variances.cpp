@@ -31,6 +31,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <pybind11/numpy.h>
 #include <stdexcept>
@@ -127,5 +128,42 @@ py::object Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
     LOG_INFO("aclnnMean completed");
     return result.ToNumpy()[py::int_(0)];
+}
+
+py::object Mean(const NPUArray& a, bool keepdims, std::optional<py::dtype> dtype) {
+    if (!keepdims || a.shape.empty()) {
+        return Mean(a, dtype);
+    }
+
+    LOG_DEBUG("aclnnMean start: input_shape={}, tensorSize={}, aclDtype={}, keepdims=true",
+              detail::FormatShape(a.shape), a.tensorSize, AclDtypeName(a.aclDtype));
+    std::vector<int64_t> axes;
+    axes.reserve(a.shape.size());
+    std::vector<int64_t> shape(a.shape.size(), 1);
+    for (size_t axis = 0; axis < a.shape.size(); ++axis) {
+        axes.push_back(static_cast<int64_t>(axis));
+    }
+
+    auto* raw_axis_array = aclCreateIntArray(axes.data(), axes.size());
+    if (!raw_axis_array) {
+        throw std::runtime_error("[averages_and_variances.cpp](Mean) failed to create axis array");
+    }
+    std::unique_ptr<aclIntArray, decltype(&aclDestroyIntArray)> axis_array(raw_axis_array, &aclDestroyIntArray);
+    auto outDtype = dtype.has_value() ? dtype.value() : a.dtype;
+    auto result = NPUArray(shape, outDtype);
+
+    uint64_t workspaceSize = 0;
+    aclOpExecutor* executor;
+    auto error = aclnnMeanGetWorkspaceSize(a.tensorPtr, axis_array.get(), true, result.aclDtype, result.tensorPtr,
+                                           &workspaceSize, &executor);
+    ACLNN_CHECK(error, "aclnnMeanGetWorkspaceSize");
+
+    AclWorkspace workspace(workspaceSize);
+    error = aclnnMean(workspace.get(), workspaceSize, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnMean");
+    error = aclrtSynchronizeDevice();
+    ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    LOG_INFO("aclnnMean completed");
+    return py::cast(std::move(result));
 }
 } // namespace asnumpy

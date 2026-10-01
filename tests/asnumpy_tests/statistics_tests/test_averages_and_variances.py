@@ -60,9 +60,10 @@ def _assert_mean_allclose(
     np_result = numpy.mean(np_data, axis=axis, keepdims=keepdims, dtype=dtype)
     ap_result = ap.mean(ap_data, axis=axis, keepdims=keepdims, dtype=dtype)
 
-    numpy.testing.assert_allclose(
-        _to_numpy(ap_result), np_result, rtol=rtol, atol=atol, equal_nan=equal_nan
-    )
+    actual = _to_numpy(ap_result)
+    if actual.shape != np_result.shape:
+        raise AssertionError(f"shape mismatch: {actual.shape} != {np_result.shape}")
+    numpy.testing.assert_allclose(actual, np_result, rtol=rtol, atol=atol, equal_nan=equal_nan)
 
 
 def _assert_mean_dtype(data, axis=None, keepdims=False, dtype=None):
@@ -137,6 +138,27 @@ def test_mean_keepdims_axis_none():
     """测试 mean: axis=None 且 keepdims=True"""
     data = numpy.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=numpy.float32)
     _assert_mean_allclose(data, keepdims=True)
+
+
+def test_mean_keepdims_axis_none_dtype_float64():
+    """Global keepdims preserves NumPy's singleton shape and requested dtype."""
+    data = numpy.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=numpy.float32)
+    _assert_mean_allclose(data, keepdims=True, dtype=numpy.float64)
+    _assert_mean_dtype(data, keepdims=True, dtype=numpy.float64)
+
+
+def test_mean_keepdims_axis0_dtype_float64():
+    """Explicit-axis keepdims remains a shape and dtype control for global reduction."""
+    data = numpy.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=numpy.float32)
+    _assert_mean_allclose(data, axis=0, keepdims=True, dtype=numpy.float64)
+    _assert_mean_dtype(data, axis=0, keepdims=True, dtype=numpy.float64)
+
+
+def test_mean_keepdims_scalar_input():
+    """Global keepdims on scalar input retains its zero-dimensional result shape."""
+    data = numpy.array(2.5, dtype=numpy.float32)
+    _assert_mean_allclose(data, keepdims=True)
+    _assert_mean_dtype(data, keepdims=True)
 
 
 # ---------- 1.3 dtype 参数 ----------
