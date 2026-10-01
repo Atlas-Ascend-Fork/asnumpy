@@ -34,7 +34,7 @@ cat /usr/local/Ascend/ascend-toolkit/latest/version.cfg
 <details>
 <summary><b>How compatible is AsNumpy with NumPy?</b></summary>
 
-AsNumpy is designed to be API-compatible with NumPy, but operator coverage is not yet complete. The current version (v0.2.0) covers the most common math, logic, sorting, and array-creation APIs.
+AsNumpy is designed to be API-compatible with NumPy, but operator coverage is not yet complete. As of v0.3.0, it covers the most common math, logic, sorting, and array-creation APIs.
 
 The roadmap target is to cover the **top 100 most-used NumPy APIs** by v1.0. See the [README roadmap](../README.md#roadmap) for the full plan.
 
