@@ -53,6 +53,13 @@ from ._types import ArrayLike, DTypeLike, ScalarLike, ShapeLike
 from .utils import _convert_dtype, _normalize_shape, ndarray
 
 
+def _resolve_like_dtype(prototype: ArrayLike, dtype: object):
+    """Use the prototype dtype when a like function does not receive one."""
+    if dtype is None and isinstance(prototype, ndarray):
+        dtype = prototype.dtype
+    return _convert_dtype(dtype)
+
+
 @logger.catch(reraise=True)
 def zeros(shape: ShapeLike, dtype: DTypeLike = None) -> ndarray:
     logger.debug(f"Creating zeros array shape={shape}, dtype={dtype}")
@@ -62,7 +69,7 @@ def zeros(shape: ShapeLike, dtype: DTypeLike = None) -> ndarray:
 @logger.catch(reraise=True)
 def zeros_like(other: ArrayLike, dtype: DTypeLike = None) -> ndarray:
     logger.debug(f"Creating zeros_like array other={other}, dtype={dtype}")
-    return ndarray(_zeros_like(other, _convert_dtype(dtype)))
+    return ndarray(_zeros_like(other, _resolve_like_dtype(other, dtype)))
 
 
 @logger.catch(reraise=True)
@@ -74,7 +81,7 @@ def full(shape: ShapeLike, value: ScalarLike, dtype: DTypeLike = None) -> ndarra
 @logger.catch(reraise=True)
 def full_like(other: ArrayLike, value: ScalarLike, dtype: DTypeLike = None) -> ndarray:
     logger.debug(f"Creating full_like array other={other}, value={value}, dtype={dtype}")
-    return ndarray(_full_like(other, value, _convert_dtype(dtype)))
+    return ndarray(_full_like(other, value, _resolve_like_dtype(other, dtype)))
 
 
 @logger.catch(reraise=True)
@@ -86,7 +93,7 @@ def empty(shape: ShapeLike, dtype: DTypeLike = None) -> ndarray:
 @logger.catch(reraise=True)
 def empty_like(prototype: ArrayLike, dtype: DTypeLike = None) -> ndarray:
     logger.debug(f"Creating empty_like array prototype={prototype}, dtype={dtype}")
-    return ndarray(_empty_like(prototype, _convert_dtype(dtype)))
+    return ndarray(_empty_like(prototype, _resolve_like_dtype(prototype, dtype)))
 
 
 @logger.catch(reraise=True)
@@ -104,7 +111,7 @@ def ones(shape: ShapeLike, dtype: DTypeLike = None) -> ndarray:
 @logger.catch(reraise=True)
 def ones_like(other: ArrayLike, dtype: DTypeLike = None) -> ndarray:
     logger.debug(f"Creating ones_like array other={other}, dtype={dtype}")
-    return ndarray(_ones_like(other, _convert_dtype(dtype)))
+    return ndarray(_ones_like(other, _resolve_like_dtype(other, dtype)))
 
 
 @logger.catch(reraise=True)
