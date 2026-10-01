@@ -38,10 +38,7 @@ from asnumpy import testing
 @testing.for_all_dtypes()
 @testing.numpy_asnumpy_array_equal()
 def test_zeros_like(xp, dtype):
-    """测试zeros_like - 基本功能
-
-    API差异：asnumpy需要显式传递dtype参数
-    """
+    """测试zeros_like - 基本功能"""
     a = testing.shaped_arange((2, 3), dtype=dtype, xp=xp)
     return xp.zeros_like(a, dtype=dtype)
 
@@ -87,11 +84,7 @@ def test_zeros_like_scalar_shape(xp, dtype):
 )
 @testing.numpy_asnumpy_array_equal()
 def test_ones_like(xp, dtype):
-    """测试ones_like - 基本功能
-
-    只测试ones支持的dtype
-    API差异：asnumpy需要显式传递dtype参数
-    """
+    """测试ones_like - 基本功能，只测试ones支持的dtype"""
     a = testing.shaped_arange((3, 4), dtype=dtype, xp=xp)
     return xp.ones_like(a, dtype=dtype)
 
@@ -120,7 +113,6 @@ def test_empty_like(xp, dtype):
     """测试empty_like - 基本功能
 
     注意：empty返回未初始化内存，使用zeros_like代替以便比较
-    API差异：asnumpy需要显式传递dtype参数
     """
     a = testing.shaped_random((2, 3), dtype=dtype, seed=42, xp=xp)
     # 使用zeros_like代替empty_like用于结果比较
@@ -299,9 +291,6 @@ def test_full_zero_fill(xp, dtype):
 
 
 # ========== full_like 测试 ==========
-# API限制：full_like 需要显式 dtype 参数
-
-
 @testing.for_dtypes(
     [
         numpy.float32,
@@ -318,7 +307,6 @@ def test_full_zero_fill(xp, dtype):
 def test_full_like(xp, dtype):
     """测试full_like - 基本功能
 
-    API差异：asnumpy需要显式传递dtype参数
     API限制：排除 uint16（CANN 不支持）
     """
     a = testing.shaped_arange((2, 3, 4), dtype=dtype, xp=xp)
@@ -371,6 +359,49 @@ def test_full_like_large(xp, dtype):
     return xp.full_like(a, fill_value, dtype=dtype)
 
 
+def test_like_default_dtype_matches_prototype():
+    """Like functions inherit a non-default prototype dtype when dtype is omitted."""
+    import asnumpy as ap
+
+    host = numpy.array([[1, -2], [3, 4]], dtype=numpy.int16)
+    prototype = ap.ndarray.from_numpy(host)
+
+    for result, expected in (
+        (ap.zeros_like(prototype), numpy.zeros_like(host)),
+        (ap.ones_like(prototype), numpy.ones_like(host)),
+        (ap.full_like(prototype, 5), numpy.full_like(host, 5)),
+    ):
+        actual = result.to_numpy()
+        numpy.testing.assert_array_equal(actual, expected)
+        assert actual.dtype == host.dtype
+
+    empty = ap.empty_like(prototype)
+    assert empty.shape == host.shape
+    assert empty.dtype == host.dtype
+
+
+def test_like_explicit_dtype_overrides_prototype():
+    """An explicit dtype continues to override the prototype dtype."""
+    import asnumpy as ap
+
+    host = numpy.array([[1, -2], [3, 4]], dtype=numpy.int16)
+    prototype = ap.ndarray.from_numpy(host)
+    dtype = numpy.float32
+
+    for result, expected in (
+        (ap.zeros_like(prototype, dtype=dtype), numpy.zeros_like(host, dtype=dtype)),
+        (ap.ones_like(prototype, dtype=dtype), numpy.ones_like(host, dtype=dtype)),
+        (ap.full_like(prototype, 1.5, dtype=dtype), numpy.full_like(host, 1.5, dtype=dtype)),
+    ):
+        actual = result.to_numpy()
+        numpy.testing.assert_array_equal(actual, expected)
+        assert actual.dtype == numpy.dtype(dtype)
+
+    empty = ap.empty_like(prototype, dtype=dtype)
+    assert empty.shape == host.shape
+    assert empty.dtype == numpy.dtype(dtype)
+
+
 # ========== 注意 ==========
 # 以下 dtype 已知不支持，已从测试中排除：
 #
@@ -381,9 +412,6 @@ def test_full_like_large(xp, dtype):
 # full/full_like 不支持:
 #   - uint16 (CANN: aclnnInplaceFillScalarGetWorkspaceSize error)
 #   - complex64/128 (pybind11 Conversion error)
-#
-# *_like 函数 API 差异:
-#   - 需要显式传递 dtype 参数（NumPy 中可选）
 #
 # full 行为差异:
 #   - 不检查整数溢出（NumPy 会抛出 OverflowError）
