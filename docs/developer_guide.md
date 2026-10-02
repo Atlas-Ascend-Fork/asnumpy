@@ -548,6 +548,8 @@ def test_sinc_at_zero(xp, dtype):
 
 asnumpy 提供了丰富的测试装饰器，用于参数化测试和结果比较。
 
+参数枚举装饰器只提供它负责的参数（如 `dtype`）；比较装饰器提供 `xp`。需要同时接收两者时，应组合使用，下例复用 7.2 节的 `_create_array`。
+
 #### 数据类型装饰器
 
 - `for_dtypes(dtypes)` - 指定数据类型列表
@@ -560,8 +562,9 @@ asnumpy 提供了丰富的测试装饰器，用于参数化测试和结果比较
 
 ```python
 @testing.for_float_dtypes(no_float16=True)
+@testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-8)
 def test_func(xp, dtype):
-    a = xp.array([1.0, 2.0, 3.0], dtype=dtype)
+    a = _create_array(xp, [1.0, 2.0, 3.0], dtype)
     return xp.sinc(a)
 ```
 
@@ -572,9 +575,11 @@ def test_func(xp, dtype):
 
 ```python
 @testing.for_orders(['C', 'F'])
-def test_func(xp, order):
-    return xp.zeros((3, 3), order=order)
+def test_func(order):
+    return numpy.zeros((3, 3), order=order)
 ```
+
+`for_orders` 只枚举 `order`，不会提供 `xp`。上例演示 NumPy 的内存顺序循环；当前 AsNumpy 的 `zeros` 没有 `order` 参数。
 
 #### NumPy-Asnumpy 比较装饰器
 
@@ -582,9 +587,10 @@ def test_func(xp, order):
 - `numpy_asnumpy_allclose(rtol=1e-7, atol=0)` - 比较浮点数组是否接近（设置相对/绝对容差）
 
 ```python
+@testing.for_float_dtypes(no_float16=True)
 @testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-8)
 def test_func(xp, dtype):
-    a = xp.array([1.0, 2.0, 3.0], dtype=dtype)
+    a = _create_array(xp, [1.0, 2.0, 3.0], dtype)
     return xp.sinc(a)
 ```
 
