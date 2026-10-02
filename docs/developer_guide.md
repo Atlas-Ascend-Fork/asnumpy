@@ -198,11 +198,12 @@ upstream/master ←── PR ─── upstream/fix/xxx
 
 ```bash
 git clone <upstream-url>
+cd asnumpy
 git checkout master
-git pull upstream master
+git pull origin master
 git checkout -b fix/signbit-error
 # Develop, commit, push
-git push upstream fix/signbit-error
+git push origin fix/signbit-error
 # Open a PR on the platform: fix/signbit-error → master
 ```
 
@@ -216,11 +217,13 @@ upstream/master ←── PR ─── fork/fix/xxx
 
 ```bash
 git clone <fork-url>
+cd asnumpy
+git remote add upstream https://gitcode.com/cann/asnumpy.git
 git checkout master
 git pull upstream master
 git checkout -b fix/signbit-error
 # Develop, commit, push
-git push fork fix/signbit-error
+git push origin fix/signbit-error
 # Open a PR on the platform: fork/fix/xxx → upstream/master
 ```
 
