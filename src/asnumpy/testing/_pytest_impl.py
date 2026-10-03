@@ -42,7 +42,7 @@ def is_available():
         bool: True if pytest is installed and importable.
     """
     try:
-        import pytest
+        import pytest  # noqa: F401 -- probe importability
 
         return True
     except ImportError:
@@ -88,15 +88,25 @@ def parameterize(*args, **kwargs):
         # Fall back to a simple loop implementation when pytest is unavailable
         def decorator(func):
             @functools.wraps(func)
-            def wrapper(self, *func_args, **func_kwargs):
-                if len(args) >= 2:
-                    param_name = args[0]
-                    param_values = args[1]
-                    for value in param_values:
-                        func_kwargs[param_name] = value
-                        func(self, *func_args, **func_kwargs)
-                else:
-                    func(self, *func_args, **func_kwargs)
+            def wrapper(*func_args, **func_kwargs):
+                if len(args) < 2:
+                    return func(*func_args, **func_kwargs)
+                names = args[0]
+                scalar = isinstance(names, str) and "," not in names
+                names = (
+                    [part.strip() for part in names.split(",")]
+                    if isinstance(names, str)
+                    else list(names)
+                )
+                if not names or any(not name for name in names):
+                    raise ValueError("parameter names must be nonempty")
+                for value in args[1]:
+                    values = (value,) if scalar else tuple(value)
+                    if len(values) != len(names):
+                        raise ValueError("parameter names and values have different lengths")
+                    parameters = dict(func_kwargs)
+                    parameters.update(zip(names, values, strict=True))
+                    func(*func_args, **parameters)
 
             return wrapper
 
