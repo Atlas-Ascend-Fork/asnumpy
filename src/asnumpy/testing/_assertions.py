@@ -230,6 +230,8 @@ class _AssertWarnsContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._warnings_manager.__exit__(exc_type, exc_val, exc_tb)
+        if exc_type is not None:
+            return False
 
         for w in self.warnings:
             if issubclass(w.category, self.warning_class):
@@ -290,6 +292,8 @@ class _AssertNoWarningsContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._warnings_manager.__exit__(exc_type, exc_val, exc_tb)
+        if exc_type is not None:
+            return False
 
         if self.warnings:
             warning_msgs = [f"{w.category.__name__}: {w.message}" for w in self.warnings]
