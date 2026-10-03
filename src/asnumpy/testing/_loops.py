@@ -465,7 +465,9 @@ def numpy_asnumpy_array_equal(
     """
 
     def check_func(x, y):
-        _array.assert_array_equal(x, y, err_msg, verbose, strides_check=strides_check)
+        _array.assert_array_equal(
+            x, y, err_msg, verbose, strides_check=strides_check, type_check=type_check
+        )
 
     return _make_decorator(check_func, name, type_check, accept_error, sp_name, scipy_name)
 
@@ -501,6 +503,8 @@ def numpy_asnumpy_allclose(
     """
 
     def check_func(x, y):
-        _array.assert_allclose(x, y, rtol, atol, err_msg, verbose, strides_check=strides_check)
+        _array.assert_allclose(
+            x, y, rtol, atol, err_msg, verbose, strides_check=strides_check, type_check=type_check
+        )
 
     return _make_decorator(check_func, name, type_check, accept_error, sp_name, scipy_name)

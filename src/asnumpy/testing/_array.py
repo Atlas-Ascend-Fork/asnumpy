@@ -24,7 +24,7 @@ __all__ = ["assert_array_equal", "assert_allclose"]
 import numpy as np
 
 
-def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
+def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False, type_check=True):
     """Assert that two arrays are exactly equal.
 
     Args:
@@ -56,7 +56,7 @@ def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
     # Check dtype
-    if x.dtype != y.dtype:
+    if type_check and x.dtype != y.dtype:
         msg = f"Dtype mismatch: x.dtype={x.dtype}, y.dtype={y.dtype}"
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
@@ -90,7 +90,9 @@ def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
 
-def assert_allclose(x, y, rtol=1e-7, atol=0, err_msg="", verbose=True, strides_check=False):
+def assert_allclose(
+    x, y, rtol=1e-7, atol=0, err_msg="", verbose=True, strides_check=False, type_check=True
+):
     """Assert that two arrays are equal within a tolerance (for floating-point comparison)."""
     # Convert to numpy arrays
     if not isinstance(x, np.ndarray):
@@ -111,7 +113,7 @@ def assert_allclose(x, y, rtol=1e-7, atol=0, err_msg="", verbose=True, strides_c
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
     # Check dtype
-    if x.dtype != y.dtype:
+    if type_check and x.dtype != y.dtype:
         msg = f"Dtype mismatch: x.dtype={x.dtype}, y.dtype={y.dtype}"
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
