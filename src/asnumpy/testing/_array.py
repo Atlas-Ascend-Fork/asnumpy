@@ -83,7 +83,7 @@ def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
                 pass  # Ignore if difference computation fails
 
             if x.size > 0:
-                msg += f"\nIndices where elements differ: {np.where(x != y)}"
+                msg += f"\nIndices where elements differ: {np.atleast_1d(x != y).nonzero()}"
             msg += f"\nNumPy:\n{x}\nAsNumPy:\n{y}"
         else:
             msg = "Arrays are not equal."
