@@ -59,7 +59,7 @@ namespace {
 
 using AclScalarHandle = std::unique_ptr<aclScalar, decltype(&aclDestroyScalar)>;
 
-AclScalarHandle CreateScalar(const void* value, aclDataType dtype) {
+AclScalarHandle CreateScalar(void* value, aclDataType dtype) {
     AclScalarHandle scalar(aclCreateScalar(value, dtype), &aclDestroyScalar);
     if (!scalar) {
         throw std::runtime_error("aclCreateScalar returned null");
