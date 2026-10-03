@@ -28,6 +28,7 @@ __all__ = [
 ]
 
 import functools
+import unittest
 
 
 def make_decorator(decorator_func):
@@ -150,7 +151,10 @@ class TestBundle:
         """
         results = []
         for test_class in self.test_classes:
-            suite = runner.loadTestsFromTestCase(test_class)
+            loader = getattr(
+                runner, "loadTestsFromTestCase", unittest.defaultTestLoader.loadTestsFromTestCase
+            )
+            suite = loader(test_class)
             result = runner.run(suite)
             results.append(result)
         return results
