@@ -81,6 +81,11 @@ def test_sign_basic(xp, dtype):
     return xp.sign(a)
 
 
+@testing.numpy_asnumpy_allclose()
+def test_sign_scalar(xp):
+    return xp.sign(0)
+
+
 @pytest.mark.xfail(
     reason="[FIXABLE] aclnnSign unsupported types (float16/int8/int16/uints)", strict=True
 )
@@ -113,6 +118,20 @@ def test_heaviside_basic(xp, dtype):
     x1 = _create_array(xp, [-1.5, 0, 1.5], dtype)
     x2 = _create_array(xp, [0.5, 0.5, 0.5], dtype)
     return xp.heaviside(x1, x2)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose()
+def test_heaviside_scalar_x1(xp, dtype):
+    x2 = _create_array(xp, [0.5, 0.5, 0.5], dtype)
+    return xp.heaviside(0.0, x2)
+
+
+@testing.for_dtypes([numpy.float32])
+@testing.numpy_asnumpy_allclose()
+def test_heaviside_scalar_x2(xp, dtype):
+    x1 = _create_array(xp, [-1.5, 0, 1.5], dtype)
+    return xp.heaviside(x1, 0.5)
 
 
 # ========== 3. 最大/最小比较 (Maximum, Minimum) ==========
