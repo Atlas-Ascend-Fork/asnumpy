@@ -338,6 +338,12 @@ def rad2deg(x: ArrayLike) -> ndarray:
 
 
 # Miscellaneous functions
+def _as_scalar_array(value: ArrayLike, dtype: np.dtype | None = None) -> ArrayLike:
+    if isinstance(value, (int, float, complex, bool)):
+        return ndarray.from_numpy(np.asarray(value, dtype=dtype))
+    return value
+
+
 def absolute(x: ArrayLike) -> ndarray:
     return ndarray(_absolute(x))
 
@@ -347,10 +353,17 @@ def fabs(x: ArrayLike) -> ndarray:
 
 
 def sign(x: ArrayLike) -> ndarray:
-    return ndarray(_sign(x))
+    return ndarray(_sign(_as_scalar_array(x)))
 
 
 def heaviside(x1: ArrayLike, x2: ArrayLike) -> ndarray:
+    if isinstance(x1, ndarray):
+        x2 = _as_scalar_array(x2, x1.dtype)
+    elif isinstance(x2, ndarray):
+        x1 = _as_scalar_array(x1, x2.dtype)
+    else:
+        x1 = _as_scalar_array(x1)
+        x2 = _as_scalar_array(x2)
     return ndarray(_heaviside(x1, x2))
 
 
