@@ -21,7 +21,95 @@ Provides array comparison assertion functions for use in tests.
 
 __all__ = ["assert_array_equal", "assert_allclose"]
 
+from dataclasses import dataclass
+
 import numpy as np
+
+
+@dataclass(frozen=True)
+class _ComparisonOptions:
+    err_msg: str = ""
+    verbose: bool = True
+    strides_check: bool = False
+    type_check: bool = True
+    rtol: float = 1e-7
+    atol: float = 0
+
+
+def _to_numpy(value):
+    if isinstance(value, np.ndarray):
+        return value
+    if hasattr(value, "to_numpy"):
+        return value.to_numpy()
+    return np.asarray(value)
+
+
+def _raise_mismatch(msg, err_msg):
+    raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
+
+
+def _check_metadata(x, y, options):
+    if x.shape != y.shape:
+        _raise_mismatch(f"Shape mismatch: x.shape={x.shape}, y.shape={y.shape}", options.err_msg)
+    if options.type_check and x.dtype != y.dtype:
+        _raise_mismatch(f"Dtype mismatch: x.dtype={x.dtype}, y.dtype={y.dtype}", options.err_msg)
+    if options.strides_check and x.strides != y.strides:
+        _raise_mismatch(
+            f"Strides mismatch: x.strides={x.strides}, y.strides={y.strides}", options.err_msg
+        )
+
+
+def _equal_difference(x, y):
+    if x.dtype.kind not in "biu f":
+        return ""
+    try:
+        if x.dtype.kind == "b":
+            return f"\nNumber of differing elements: {np.sum(x ^ y)}"
+        return f"\nMax absolute difference: {np.abs(x - y).max()}"
+    except Exception:
+        # Difference diagnostics must not replace the comparison assertion.
+        return ""
+
+
+def _close_difference(x, y):
+    if x.dtype.kind not in "uif":
+        return ""
+    try:
+        return f"\nMax absolute difference: {np.abs(x - y).max()}"
+    except TypeError as exc:
+        return f"\nWarning: Cannot calculate difference - {str(exc)}"
+    except Exception as exc:
+        return f"\nWarning: Difference calculation failed - {type(exc).__name__}: {str(exc)}"
+
+
+def _assert_array_equal(x, y, options):
+    x, y = _to_numpy(x), _to_numpy(y)
+    _check_metadata(x, y, options)
+    if np.array_equal(x, y):
+        return
+    msg = "Arrays are not equal."
+    if options.verbose:
+        msg += _equal_difference(x, y)
+        if x.size > 0:
+            msg += f"\nIndices where elements differ: {np.where(x != y)}"
+        msg += f"\nNumPy:\n{x}\nAsNumPy:\n{y}"
+    _raise_mismatch(msg, options.err_msg)
+
+
+def _assert_allclose(x, y, options):
+    x, y = _to_numpy(x), _to_numpy(y)
+    _check_metadata(x, y, options)
+    if np.allclose(x, y, rtol=options.rtol, atol=options.atol, equal_nan=True):
+        return
+    msg = "Arrays are not almost equal."
+    if options.verbose:
+        msg += _close_difference(x, y)
+        if x.size > 0:
+            mask = ~np.isclose(x, y, rtol=options.rtol, atol=options.atol, equal_nan=True)
+            indices = np.atleast_1d(mask).nonzero()
+            msg += f"\nIndices where elements differ: {indices}"
+        msg += f"\nNumPy:\n{x}\nAsNumPy:\n{y}"
+    _raise_mismatch(msg, options.err_msg)
 
 
 def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
@@ -37,110 +125,13 @@ def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
     Raises:
         AssertionError: If the arrays are not equal.
     """
-    # Convert to numpy arrays
-    if not isinstance(x, np.ndarray):
-        if hasattr(x, "to_numpy"):
-            x = x.to_numpy()
-        else:
-            x = np.asarray(x)
-
-    if not isinstance(y, np.ndarray):
-        if hasattr(y, "to_numpy"):
-            y = y.to_numpy()
-        else:
-            y = np.asarray(y)
-
-    # Check shape
-    if x.shape != y.shape:
-        msg = f"Shape mismatch: x.shape={x.shape}, y.shape={y.shape}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check dtype
-    if x.dtype != y.dtype:
-        msg = f"Dtype mismatch: x.dtype={x.dtype}, y.dtype={y.dtype}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check strides
-    if strides_check and x.strides != y.strides:
-        msg = f"Strides mismatch: x.strides={x.strides}, y.strides={y.strides}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check values
-    if not np.array_equal(x, y):
-        if verbose:
-            msg = "Arrays are not equal."
-            try:
-                # Compute difference only for numeric types
-                if x.dtype.kind in "biu f":  # bool, int, uint, float
-                    if x.dtype.kind == "b":
-                        # For bool, use XOR to compute difference (subtraction raises an error)
-                        diff = x ^ y
-                        msg += f"\nNumber of differing elements: {np.sum(diff)}"
-                    else:
-                        diff = x - y
-                        msg += f"\nMax absolute difference: {np.abs(diff).max()}"
-            except Exception:
-                pass  # Ignore if difference computation fails
-
-            if x.size > 0:
-                msg += f"\nIndices where elements differ: {np.where(x != y)}"
-            msg += f"\nNumPy:\n{x}\nAsNumPy:\n{y}"
-        else:
-            msg = "Arrays are not equal."
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
+    options = _ComparisonOptions(err_msg=err_msg, verbose=verbose, strides_check=strides_check)
+    _assert_array_equal(x, y, options)
 
 
 def assert_allclose(x, y, rtol=1e-7, atol=0, err_msg="", verbose=True, strides_check=False):
-    """Assert that two arrays are equal within a tolerance (for floating-point comparison)."""
-    # Convert to numpy arrays
-    if not isinstance(x, np.ndarray):
-        if hasattr(x, "to_numpy"):
-            x = x.to_numpy()
-        else:
-            x = np.asarray(x)
-
-    if not isinstance(y, np.ndarray):
-        if hasattr(y, "to_numpy"):
-            y = y.to_numpy()
-        else:
-            y = np.asarray(y)
-
-    # Check shape
-    if x.shape != y.shape:
-        msg = f"Shape mismatch: x.shape={x.shape}, y.shape={y.shape}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check dtype
-    if x.dtype != y.dtype:
-        msg = f"Dtype mismatch: x.dtype={x.dtype}, y.dtype={y.dtype}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check strides
-    if strides_check and x.strides != y.strides:
-        msg = f"Strides mismatch: x.strides={x.strides}, y.strides={y.strides}"
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
-
-    # Check values within tolerance
-    if not np.allclose(x, y, rtol=rtol, atol=atol, equal_nan=True):
-        if verbose:
-            msg = "Arrays are not almost equal."
-            try:
-                if x.dtype.kind in "uif":
-                    diff = x - y
-                    msg += f"\nMax absolute difference: {np.abs(diff).max()}"
-            except TypeError as e:
-                # Type error: cannot perform arithmetic - log but continue
-                msg += f"\nWarning: Cannot calculate difference - {str(e)}"
-            except Exception as e:
-                # Other unexpected errors - log details
-                msg += f"\nWarning: Difference calculation failed - {type(e).__name__}: {str(e)}"
-
-            if x.size > 0:
-                mask = ~np.isclose(x, y, rtol=rtol, atol=atol, equal_nan=True)
-                # Use atleast_1d to avoid DeprecationWarning on 0d arrays
-                indices = np.atleast_1d(mask).nonzero()
-                msg += f"\nIndices where elements differ: {indices}"
-            msg += f"\nNumPy:\n{x}\nAsNumPy:\n{y}"
-        else:
-            msg = "Arrays are not almost equal."
-        raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
+    """Assert equality within a tolerance, including shape and dtype."""
+    options = _ComparisonOptions(
+        err_msg=err_msg, verbose=verbose, strides_check=strides_check, rtol=rtol, atol=atol
+    )
+    _assert_allclose(x, y, options)

@@ -464,8 +464,12 @@ def numpy_asnumpy_array_equal(
         Decorator function.
     """
 
+    options = _array._ComparisonOptions(
+        err_msg=err_msg, verbose=verbose, strides_check=strides_check, type_check=type_check
+    )
+
     def check_func(x, y):
-        _array.assert_array_equal(x, y, err_msg, verbose, strides_check=strides_check)
+        _array._assert_array_equal(x, y, options)
 
     return _make_decorator(check_func, name, type_check, accept_error, sp_name, scipy_name)
 
@@ -500,7 +504,16 @@ def numpy_asnumpy_allclose(
         Decorator function.
     """
 
+    options = _array._ComparisonOptions(
+        err_msg=err_msg,
+        verbose=verbose,
+        strides_check=strides_check,
+        type_check=type_check,
+        rtol=rtol,
+        atol=atol,
+    )
+
     def check_func(x, y):
-        _array.assert_allclose(x, y, rtol, atol, err_msg, verbose, strides_check=strides_check)
+        _array._assert_allclose(x, y, options)
 
     return _make_decorator(check_func, name, type_check, accept_error, sp_name, scipy_name)
