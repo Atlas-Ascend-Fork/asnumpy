@@ -28,7 +28,8 @@ Implements:
 
 import numpy as _np
 
-from ._core import ndarray as NPUArray
+from ._core import ndarray as _CoreArray
+from .utils import ndarray as NPUArray
 
 
 def _to_numpy(x):
@@ -37,7 +38,7 @@ def _to_numpy(x):
     - If input is NPUArray: call x.to_numpy() (implemented in the C++ layer).
     - If input is already numpy.ndarray: return as-is.
     """
-    if isinstance(x, NPUArray):
+    if isinstance(x, _CoreArray):
         return x.to_numpy()
     return x
 
