@@ -131,6 +131,34 @@ def test_any_keepdims(xp, dtype):
     return xp.any(a, axis=(1,), keepdims=True)
 
 
+# ---------- 1.5 整数单轴 ----------
+@testing.for_dtypes([numpy.bool_, numpy.int32])
+@testing.numpy_asnumpy_array_equal()
+def test_all_integer_axis(xp, dtype):
+    """整数单轴应等价于单元素元组轴"""
+    data = [[True, False], [True, True]]
+    a = _create_array(xp, data, dtype)
+    return xp.all(a, axis=0)
+
+
+@testing.for_dtypes([numpy.bool_, numpy.int32])
+@testing.numpy_asnumpy_array_equal()
+def test_any_integer_axis(xp, dtype):
+    """整数单轴应等价于单元素元组轴"""
+    data = [[False, False], [True, False]]
+    a = _create_array(xp, data, dtype)
+    return xp.any(a, axis=1)
+
+
+@testing.for_dtypes([numpy.bool_, numpy.int32])
+@testing.numpy_asnumpy_array_equal()
+def test_all_integer_axis_keepdims(xp, dtype):
+    """整数单轴配合 keepdims 仍应保留归约维"""
+    data = [[True, False], [True, True]]
+    a = _create_array(xp, data, dtype)
+    return xp.all(a, axis=0, keepdims=True)
+
+
 # ---------- 1.4 全 True / 全 False ----------
 @testing.for_dtypes([numpy.bool_, numpy.int32])
 @testing.numpy_asnumpy_array_equal()

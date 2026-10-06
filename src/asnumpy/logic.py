@@ -67,16 +67,30 @@ from ._ufunc import create_ufunc as _create_ufunc
 from .utils import _convert_dtype, ndarray
 
 
+def _normalize_axis(axis: AxisLike) -> tuple:
+    """Normalize a single integer axis to a one-element sequence.
+
+    The native ``All``/``Any`` overloads take an axis vector, so a bare
+    integer axis must be wrapped before dispatch while ``None`` and existing
+    sequences keep their current behavior.
+    """
+    if isinstance(axis, tuple):
+        return axis
+    if isinstance(axis, list):
+        return tuple(axis)
+    return (axis,)
+
+
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     if axis is None:
         return ndarray(_all(x))
-    return ndarray(_all(x, axis, keepdims))
+    return ndarray(_all(x, _normalize_axis(axis), keepdims))
 
 
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     if axis is None:
         return ndarray(_any(x))
-    return ndarray(_any(x, axis, keepdims))
+    return ndarray(_any(x, _normalize_axis(axis), keepdims))
 
 
 # ---------- Unary is-checks ----------
