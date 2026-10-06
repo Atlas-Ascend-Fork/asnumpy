@@ -68,12 +68,16 @@ from .utils import _convert_dtype, ndarray
 
 
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(x, "ndim", 0))) or None
     if axis is None:
         return ndarray(_all(x))
     return ndarray(_all(x, axis, keepdims))
 
 
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(x, "ndim", 0))) or None
     if axis is None:
         return ndarray(_any(x))
     return ndarray(_any(x, axis, keepdims))

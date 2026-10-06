@@ -131,6 +131,26 @@ def test_any_keepdims(xp, dtype):
     return xp.any(a, axis=(1,), keepdims=True)
 
 
+@testing.for_dtypes([numpy.bool_, numpy.int32])
+@testing.numpy_asnumpy_array_equal()
+def test_all_global_keepdims(xp, dtype):
+    """Global reduction retains one singleton dimension per input axis."""
+    a = _create_array(xp, [[True, False], [True, True]], dtype)
+    result = xp.all(a, keepdims=True)
+    assert result.shape == (1, 1)
+    return result
+
+
+@testing.for_dtypes([numpy.bool_, numpy.int32])
+@testing.numpy_asnumpy_array_equal()
+def test_any_global_keepdims(xp, dtype):
+    """Global reduction retains one singleton dimension per input axis."""
+    a = _create_array(xp, [[True, False], [True, True]], dtype)
+    result = xp.any(a, keepdims=True)
+    assert result.shape == (1, 1)
+    return result
+
+
 # ---------- 1.4 全 True / 全 False ----------
 @testing.for_dtypes([numpy.bool_, numpy.int32])
 @testing.numpy_asnumpy_array_equal()
