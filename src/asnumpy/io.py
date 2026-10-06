@@ -29,6 +29,7 @@ Implements:
 import numpy as _np
 
 from ._core import ndarray as NPUArray
+from .utils import ndarray as PublicArray
 
 
 def _to_numpy(x):
@@ -76,7 +77,7 @@ class _AsnpNpz:
     Works like a dictionary:
         with asnumpy.load("data.npz") as f:
             arr = f["key"]
-    But values are returned as NPUArray (not numpy.ndarray).
+    Values are returned as the public asnumpy.ndarray wrapper.
     """
 
     def __init__(self, npz):
@@ -106,7 +107,7 @@ class _AsnpNpz:
     def __getitem__(self, key):
         if key not in self._cache:
             host = self._npz[key]  # lazy unzip → numpy.ndarray
-            self._cache[key] = NPUArray.from_numpy(host)  # upload to NPU
+            self._cache[key] = PublicArray.from_numpy(host)  # upload to NPU
         return self._cache[key]
 
 
@@ -128,8 +129,8 @@ def load(file, mmap_mode=None, allow_pickle=False, **kwargs):
     obj = _np.load(file, mmap_mode=mmap_mode, allow_pickle=allow_pickle, **kwargs)
 
     if isinstance(obj, _np.ndarray):
-        # .npy file → host ndarray → NPUArray
-        return NPUArray.from_numpy(obj)
+        # .npy file → host ndarray → public asnumpy.ndarray
+        return PublicArray.from_numpy(obj)
     else:
         # .npz file → wrap in lazy container
         return _AsnpNpz(obj)
