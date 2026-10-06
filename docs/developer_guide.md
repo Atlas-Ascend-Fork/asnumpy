@@ -616,6 +616,16 @@ pip install -e .
 
 ### 8.2 运行测试
 
+#### NPZ 容器生命周期的 Host 回归
+
+```bash
+python3 tests/asnumpy_tests/io_tests/test_npz_close_host.py
+```
+
+此回归读取真实的普通/压缩 NPZ，并仅替代 NPU 数组转换边界，不需要安装原生扩展。
+关闭容器或退出 `with` 时应释放其缓存引用；调用方仍持有的数组保持有效。
+测试覆盖正常和异常退出、重复关闭、懒加载及缓存身份，不验证真实 NPU 内存释放。
+
 #### 运行所有测试
 
 ```bash
