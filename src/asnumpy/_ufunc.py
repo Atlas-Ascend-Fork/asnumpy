@@ -371,14 +371,32 @@ class ufunc:
 
     @staticmethod
     def _write_out(out, result):
-        """Write *result* into *out* buffer if specified, otherwise return result."""
+        """Write *result* into *out* buffer if specified, otherwise return result.
+
+        Follows NumPy's output protocol: the number of ``out`` slots is
+        validated against the number of outputs before anything is written, a
+        ``None`` slot keeps the freshly computed array, and a single output is
+        returned as a bare array rather than a one-element tuple.
+        """
         if out is None:
             return result
         out_targets = out if isinstance(out, tuple) else (out,)
         results = result if isinstance(result, tuple) else (result,)
-        for dst, src in zip(out_targets, results, strict=True):
-            dst[...] = src
-        return out if not isinstance(out, tuple) else tuple(out)
+        if len(out_targets) != len(results):
+            raise ValueError(
+                f"ufunc needs {len(results)} output(s), got {len(out_targets)} in 'out'"
+            )
+        written = []
+        for dst, src in zip(out_targets, results):
+            if dst is None:
+                # NumPy fills a None slot with a freshly allocated output.
+                written.append(src)
+            else:
+                dst[...] = src
+                written.append(dst)
+        if not isinstance(out, tuple) or len(written) == 1:
+            return written[0]
+        return tuple(written)
 
 
 def create_ufunc(
