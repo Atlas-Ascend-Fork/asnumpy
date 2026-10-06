@@ -17,7 +17,61 @@
 #include "asnumpy/utils/npu_scalar.hpp"
 #include <asnumpy/utils/status_handler.hpp>
 
+#include <cstdint>
+#include <cstring>
+
 #include <fmt/format.h>
+
+
+/*
+    Converts an IEEE-754 binary32 value to IEEE-754 binary16 bits with
+    round-to-nearest, ties-to-even, including subnormal, overflow and NaN
+    handling. aclCreateScalar expects the raw binary16 bit pattern for
+    ACL_FLOAT16, so an explicit conversion is required here.
+*/
+static uint16_t FloatToFloat16Bits(float value) {
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+
+    const uint16_t sign = static_cast<uint16_t>((bits >> 16) & 0x8000U);
+    const uint32_t exponent = (bits >> 23) & 0xFFU;
+    const uint32_t mantissa = bits & 0x7FFFFFU;
+
+    if (exponent == 0xFFU) {
+        // Infinities keep their sign; any NaN becomes a canonical quiet NaN.
+        return static_cast<uint16_t>(mantissa == 0U ? (sign | 0x7C00U) : (sign | 0x7E00U));
+    }
+
+    const int32_t newExponent = static_cast<int32_t>(exponent) - 127 + 15;
+    if (newExponent >= 0x1F) {
+        return static_cast<uint16_t>(sign | 0x7C00U);
+    }
+
+    uint16_t half = 0;
+    if (newExponent <= 0) {
+        if (newExponent < -10) {
+            return sign;
+        }
+        const uint32_t subnormal = mantissa | 0x800000U;
+        const uint32_t shift = static_cast<uint32_t>(14 - newExponent);
+        half = static_cast<uint16_t>(subnormal >> shift);
+        const uint32_t remainder = subnormal & ((1U << shift) - 1U);
+        const uint32_t halfway = 1U << (shift - 1);
+        if (remainder > halfway || (remainder == halfway && (half & 1U) != 0U)) {
+            ++half;
+        }
+        return static_cast<uint16_t>(sign | half);
+    }
+
+    half = static_cast<uint16_t>((static_cast<uint32_t>(newExponent) << 10) | (mantissa >> 13));
+    const uint32_t remainder = mantissa & 0x1FFFU;
+    if (remainder > 0x1000U || (remainder == 0x1000U && (half & 1U) != 0U)) {
+        // Incrementing can carry into the exponent field, which correctly
+        // yields infinity on overflow.
+        ++half;
+    }
+    return static_cast<uint16_t>(sign | half);
+}
 
 /*
     Creates an aclScalar object by automatically determining the appropriate ACL data type
@@ -131,7 +185,7 @@ template <typename ValueType> aclScalar* CreateScalar(ValueType value, aclDataTy
         }
     }
     case ACL_FLOAT16: {
-        auto converted = static_cast<uint16_t>(static_cast<float>(value));
+        auto converted = FloatToFloat16Bits(static_cast<float>(value));
         return checkScalar(aclCreateScalar(&converted, ACL_FLOAT16), "aclCreateScalar");
     }
     case ACL_BF16: {

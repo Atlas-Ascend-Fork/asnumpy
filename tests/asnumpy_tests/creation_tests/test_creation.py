@@ -298,6 +298,13 @@ def test_full_zero_fill(xp, dtype):
     return xp.full((4, 5), 0.0, dtype=dtype)
 
 
+@testing.for_dtypes([numpy.float16])
+@testing.numpy_asnumpy_array_equal()
+def test_full_float16_fill(xp, dtype):
+    """FLOAT16 填充值须按 IEEE-754 binary16 编码（1.5 -> 0x3e00）"""
+    return xp.full((4,), 1.5, dtype=dtype)
+
+
 # ========== full_like 测试 ==========
 # API限制：full_like 需要显式 dtype 参数
 
@@ -369,6 +376,14 @@ def test_full_like_large(xp, dtype):
         fill_value = 9.99
 
     return xp.full_like(a, fill_value, dtype=dtype)
+
+
+@testing.for_dtypes([numpy.float16])
+@testing.numpy_asnumpy_array_equal()
+def test_full_like_float16_fill(xp, dtype):
+    """full_like 的 FLOAT16 填充值须按 IEEE-754 binary16 编码"""
+    a = testing.shaped_arange((2, 3), dtype=dtype, xp=xp)
+    return xp.full_like(a, 1.5, dtype=dtype)
 
 
 # ========== 注意 ==========
