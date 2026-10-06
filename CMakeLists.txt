@@ -119,6 +119,58 @@ find_package(spdlog REQUIRED PATHS /usr/lib64/cmake /usr/lib/cmake /usr/lib/aarc
 message(STATUS "Using system spdlog: ${spdlog_VERSION}")
 add_compile_definitions(SPDLOG_FMT_EXTERNAL)
 
+# ========== ops-fft (optional FFT backend) ==========
+# asnumpy.fft is an optional feature: it is only built when ASNUMPY_ENABLE_FFT=ON *and* an existing
+# ops-fft installation is pointed at through ASNUMPY_OPS_FFT_ROOT (or the finer-grained
+# include/library variables below). The dependency is never downloaded or hardcoded: ops-fft is a
+# separate CANN operator package that must be built for the target SoC first, see
+# https://gitcode.com/cann/ops-fft. Without it the rest of asnumpy builds and imports unchanged and
+# asnumpy.fft raises a RuntimeError explaining how to enable it.
+option(ASNUMPY_ENABLE_FFT "Build asnumpy.fft on top of a CANN ops-fft installation" OFF)
+set(ASNUMPY_OPS_FFT_ROOT "$ENV{ASNUMPY_OPS_FFT_ROOT}" CACHE PATH
+    "ops-fft install prefix, containing include/cann_ops_fft.h and lib64/libcann_ops_fft.so")
+# ASNUMPY_OPS_FFT_INCLUDE_DIR (directory holding cann_ops_fft.h) and ASNUMPY_OPS_FFT_LIBRARY (full
+# path to libcann_ops_fft.so) may be set directly to override the search below. They are deliberately
+# NOT pre-declared here: find_path/find_library skip their search when the result variable is already
+# defined -- even to an empty string -- so an empty cache entry would silently disable the lookup.
+
+if(ASNUMPY_ENABLE_FFT)
+    # ops-fft installs in the CANN layout (a private --install-path prefix yields
+    # <prefix>/cann/<arch>-linux/{include/math_libs,lib64}), while a bare ops-fft checkout keeps
+    # include/ and build/ at its root; accept both without guessing anywhere else on the system.
+    set(_asnumpy_ops_fft_hints
+        "${ASNUMPY_OPS_FFT_ROOT}"
+        "${ASNUMPY_OPS_FFT_ROOT}/cann"
+        "${ASNUMPY_OPS_FFT_ROOT}/cann/aarch64-linux"
+        "${ASNUMPY_OPS_FFT_ROOT}/aarch64-linux")
+    if(NOT ASNUMPY_OPS_FFT_INCLUDE_DIR AND ASNUMPY_OPS_FFT_ROOT)
+        find_path(ASNUMPY_OPS_FFT_INCLUDE_DIR cann_ops_fft.h
+                  PATHS ${_asnumpy_ops_fft_hints}
+                  PATH_SUFFIXES include include/math_libs
+                  NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_FFT_LIBRARY AND ASNUMPY_OPS_FFT_ROOT)
+        find_library(ASNUMPY_OPS_FFT_LIBRARY cann_ops_fft
+                     PATHS ${_asnumpy_ops_fft_hints}
+                     PATH_SUFFIXES lib64 lib build
+                     NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_FFT_INCLUDE_DIR OR NOT ASNUMPY_OPS_FFT_LIBRARY)
+        message(FATAL_ERROR
+            "ASNUMPY_ENABLE_FFT=ON, but ops-fft was not found (include='${ASNUMPY_OPS_FFT_INCLUDE_DIR}', "
+            "library='${ASNUMPY_OPS_FFT_LIBRARY}').\n"
+            "Build and install ops-fft for the target SoC first:\n"
+            "  git clone https://gitcode.com/cann/ops-fft.git && cd ops-fft\n"
+            "  bash build.sh --pkg --soc=Ascend910B\n"
+            "  ./build_out/cann-910b-ops-fft_*.run --full --quiet --install-path=<prefix>\n"
+            "then configure with -DASNUMPY_ENABLE_FFT=ON -DASNUMPY_OPS_FFT_ROOT=<prefix>, or point "
+            "-DASNUMPY_OPS_FFT_INCLUDE_DIR=<dir> and -DASNUMPY_OPS_FFT_LIBRARY=<path> at an existing build.")
+    endif()
+    message(STATUS "ops-fft enabled: ${ASNUMPY_OPS_FFT_LIBRARY} (include: ${ASNUMPY_OPS_FFT_INCLUDE_DIR})")
+else()
+    message(STATUS "ops-fft disabled: asnumpy.fft will report that the backend is unavailable")
+endif()
+
 # ========== Source directories ==========
 include_directories(include)
 add_subdirectory(csrc)
