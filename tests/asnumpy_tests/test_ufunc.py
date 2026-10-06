@@ -251,6 +251,7 @@ class TestCreateUfunc:
     @staticmethod
     def test_create_ufunc_with_fallback():
         """create_ufunc stores fallback on the ufunc."""
+
         def fallback(x):
             return x
 
@@ -341,7 +342,6 @@ class TestUfuncCorrectness:
         result = anp.equal(a, b)
         expected = numpy.array([True, False, True])
         numpy.testing.assert_array_equal(result.to_numpy(), expected)
-
 
 
 class TestArrayUfuncProtocol:
@@ -485,10 +485,10 @@ class TestWeakScalar:
         assert result.dtype == numpy.dtype("float32")
 
     @staticmethod
-    def test_coerce_complex_to_float_promotes_to_complex128():
-        """Complex scalar coerced to real dtype promotes to complex128."""
+    def test_coerce_complex_to_float_preserves_numpy_precision():
+        """Complex scalar coerced to real dtype follows NumPy weak promotion."""
         result = _mod._coerce_weak_scalar(1.0 + 0j, numpy.dtype("float32"))
-        assert numpy.issubdtype(result.dtype, numpy.complexfloating)
+        assert result.dtype == numpy.add(numpy.array(1, dtype="float32"), 1.0 + 0j).dtype
 
     # ---------- ufunc dispatch with weak scalars (needs _ndarray mock) ----------
 
@@ -506,19 +506,22 @@ class TestWeakScalar:
         # After coercion, the scalar should have float32 dtype
         coerced = _mod._coerce_weak_scalar(0.5, max_dtype)
         assert coerced.dtype == numpy.dtype("float32")
+        op = u._ops.guess_routine([coerced.dtype])
+        assert op is not None
+        assert op.in_types == (numpy.dtype("float32"),)
 
     @staticmethod
     def test_ufunc_int_scalar_kind_le_float():
         """int kind (1) <= float32 kind (2), so coercion happens."""
         arr = numpy.array([1.0], dtype=numpy.float32)
-        scalar_dtype = numpy.dtype(type(3))  # int -> int64
+        scalar_dtype = numpy.dtype(int)  # int -> int64
         assert _dtype_kind(scalar_dtype) <= _dtype_kind(arr.dtype)
 
     @staticmethod
     def test_ufunc_float_scalar_kind_eq_float():
         """float kind (2) == float32 kind (2), so coercion happens."""
         arr = numpy.array([1.0], dtype=numpy.float32)
-        scalar_dtype = numpy.dtype(type(0.5))  # float -> float64
+        scalar_dtype = numpy.dtype(float)  # float -> float64
         assert _dtype_kind(scalar_dtype) == _dtype_kind(arr.dtype)
 
     @staticmethod
