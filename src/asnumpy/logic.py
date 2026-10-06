@@ -14,6 +14,10 @@
 # limitations under the License.
 # *****************************************************************************
 
+import operator
+
+import numpy as np
+
 from ._core.logic import (
     all as _all,
 )
@@ -67,16 +71,62 @@ from ._ufunc import create_ufunc as _create_ufunc
 from .utils import _convert_dtype, ndarray
 
 
+def _normalize_axis(axis: AxisLike, x: ArrayLike) -> tuple[int, ...] | AxisLike:
+    """Normalize the ``axis`` argument of :func:`all` / :func:`any`.
+
+    The native reduction only accepts a sequence of non-negative dimensions, so
+    integer axes -- including NumPy integers -- are converted to a single-element
+    tuple here, following NumPy semantics:
+
+    * ``int`` and NumPy integer scalars are accepted; negative values count from
+      the end of the array;
+    * ``bool`` raises ``TypeError`` (NumPy accepts ``int`` but rejects ``bool``);
+      floats and strings raise ``TypeError`` as well;
+    * axes outside ``[-ndim, ndim)`` raise :class:`numpy.exceptions.AxisError`;
+    * sequence axes are validated the same way, negative values are resolved and
+      repeated axes raise ``ValueError``.
+
+    Inputs that the native binding does not support are forwarded untouched so
+    that its original error message is preserved.
+    """
+    ndim = getattr(x, "ndim", None)
+    if ndim is None:
+        shape = getattr(x, "shape", None)
+        if shape is None:
+            return axis
+        ndim = len(shape)
+
+    if isinstance(axis, (tuple, list)):
+        axes = tuple(axis)
+    elif isinstance(axis, bool):
+        raise TypeError("an integer is required")
+    else:
+        axes = (operator.index(axis),)
+
+    normalized = []
+    for item in axes:
+        index = operator.index(item)
+        if index < 0:
+            index += ndim
+        if index < 0 or index >= ndim:
+            raise np.exceptions.AxisError(item, ndim=ndim)
+        normalized.append(index)
+
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("duplicate value in 'axis'")
+    return tuple(normalized)
+
+
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     if axis is None:
         return ndarray(_all(x))
-    return ndarray(_all(x, axis, keepdims))
+    return ndarray(_all(x, _normalize_axis(axis, x), keepdims))
 
 
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     if axis is None:
         return ndarray(_any(x))
-    return ndarray(_any(x, axis, keepdims))
+    return ndarray(_any(x, _normalize_axis(axis, x), keepdims))
 
 
 # ---------- Unary is-checks ----------
