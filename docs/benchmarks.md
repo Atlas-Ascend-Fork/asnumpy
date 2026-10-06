@@ -24,7 +24,7 @@ This document contains the full performance benchmark comparing AsNumpy (NPU) ag
 </tr>
 <tr>
 <td><b>Python</b></td>
-<td colspan="2" align="center">Python 3.9+</td>
+<td colspan="2" align="center">Python 3.10+</td>
 </tr>
 <tr>
 <td><b>Library version</b></td>
