@@ -79,6 +79,8 @@ def _normalize_axis_arg(axis: AxisLike) -> list[int] | None:
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     x = _ensure_ndarray(x)
     axes = _normalize_axis_arg(axis)
+    if axes is None and keepdims:
+        axes = list(range(x.ndim)) or None
     if axes is None:
         return ndarray(_all(x))
     return ndarray(_all(x, axes, keepdims))
@@ -87,6 +89,8 @@ def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
     x = _ensure_ndarray(x)
     axes = _normalize_axis_arg(axis)
+    if axes is None and keepdims:
+        axes = list(range(x.ndim)) or None
     if axes is None:
         return ndarray(_any(x))
     return ndarray(_any(x, axes, keepdims))
