@@ -1,0 +1,116 @@
+# *****************************************************************************
+# Copyright (c) 2025 ISE Group at Harbin Institute of Technology. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *****************************************************************************
+
+"""Host NumPy oracle for the real Python logical reduction wrapper."""
+
+import importlib.util
+import sys
+import types
+from pathlib import Path
+
+import numpy
+import pytest
+
+
+@pytest.fixture
+def logic(monkeypatch):
+    """Replace native kernels, retaining the public wrapper's argument dispatch."""
+    package = "logic_keepdims_host"
+    modules = {
+        name: types.ModuleType(name)
+        for name in (
+            package,
+            f"{package}._core",
+            f"{package}._core.logic",
+            f"{package}._types",
+            f"{package}._ufunc",
+            f"{package}.utils",
+        )
+    }
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    native = modules[f"{package}._core.logic"]
+    for name in (
+        "all",
+        "any",
+        "equal",
+        "greater",
+        "greater_equal",
+        "isfinite",
+        "isinf",
+        "isneginf",
+        "isposinf",
+        "less",
+        "less_equal",
+        "logical_and",
+        "logical_not",
+        "logical_or",
+        "logical_xor",
+        "not_equal",
+    ):
+        setattr(native, name, getattr(numpy, name))
+
+    def reduce_all(values, axis=None, keepdims=False):
+        return numpy.all(values, axis=axis, keepdims=keepdims)
+
+    def reduce_any(values, axis=None, keepdims=False):
+        return numpy.any(values, axis=axis, keepdims=keepdims)
+
+    native.all = reduce_all
+    native.any = reduce_any
+    type_module = modules[f"{package}._types"]
+    type_module.ArrayLike = type_module.AxisLike = type_module.DTypeLike = object
+    modules[f"{package}._ufunc"].create_ufunc = lambda *args, **kwargs: None
+    utils = modules[f"{package}.utils"]
+    utils.ndarray = numpy.asarray
+    utils._convert_dtype = numpy.dtype
+    path = Path(__file__).resolve().parents[2] / "src/asnumpy/logic.py"
+    spec = importlib.util.spec_from_file_location(f"{package}.logic", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("operation", ["all", "any"])
+@pytest.mark.parametrize("shape", [(), (6,), (2, 3), (2, 1, 3)])
+@pytest.mark.parametrize("keepdims", [False, True])
+def test_global_reduction_matches_numpy(logic, operation, shape, keepdims):
+    values = numpy.array(1, dtype=numpy.int32) if not shape else numpy.arange(6).reshape(shape)
+    expected = getattr(numpy, operation)(values, keepdims=keepdims)
+    result = getattr(logic, operation)(values, keepdims=keepdims)
+    assert result.shape == expected.shape
+    numpy.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("operation", ["all", "any"])
+@pytest.mark.parametrize("axis", [(0,), (0, 1)])
+@pytest.mark.parametrize("keepdims", [False, True])
+def test_explicit_axes_match_numpy(logic, operation, axis, keepdims):
+    values = numpy.arange(6).reshape(2, 3)
+    expected = getattr(numpy, operation)(values, axis=axis, keepdims=keepdims)
+    result = getattr(logic, operation)(values, axis=axis, keepdims=keepdims)
+    assert result.shape == expected.shape
+    numpy.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize("operation", ["all", "any"])
+@pytest.mark.parametrize("keepdims", [False, True])
+def test_empty_global_reduction_matches_numpy(logic, operation, keepdims):
+    values = numpy.empty((0, 3), dtype=numpy.bool_)
+    expected = getattr(numpy, operation)(values, keepdims=keepdims)
+    result = getattr(logic, operation)(values, keepdims=keepdims)
+    assert result.shape == expected.shape
+    numpy.testing.assert_array_equal(result, expected)
