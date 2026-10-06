@@ -255,11 +255,22 @@ NPUArray::~NPUArray() {
  * @param host_data Input NumPy array.
  * @return NPUArray The created NPUArray.
  * @throws std::runtime_error If getting tensor data pointer fails or data copy fails.
+ * @throws std::runtime_error If a non-contiguous input cannot be materialized into a C-contiguous buffer.
  */
 NPUArray NPUArray::FromNumpy(py::array hostData) {
-    py::buffer_info info = hostData.request();
+    // A NumPy buffer may be non C-contiguous (slice / transpose / strided view). In
+    // that case info.ptr does not point at a single size*itemsize contiguous block,
+    // so copying size*itemsize bytes from it reads out of bounds. Materialize a
+    // C-contiguous copy first; already-contiguous inputs are returned unchanged, so
+    // the common path does not copy.
+    py::array contiguousData = py::array::ensure(hostData, py::array::c_style);
+    if (!contiguousData) {
+        throw std::runtime_error(
+            "[npu_array.cpp](FromNumpy) failed to convert input to a C-contiguous NumPy array");
+    }
+    py::buffer_info info = contiguousData.request();
     auto tensorByteSize = info.size * info.itemsize;
-    auto result = NPUArray(info.shape, hostData.dtype());
+    auto result = NPUArray(info.shape, contiguousData.dtype());
     if (tensorByteSize == 0)
         return result;
     void* rawDataPtr = nullptr;
