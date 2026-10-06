@@ -81,13 +81,16 @@ def shaped_random(shape, dtype=numpy.float64, scale=1.0, seed=None, xp=None):
     if seed is not None:
         numpy.random.seed(seed)
 
+    # Scale before casting: casting to an integer dtype first truncates every
+    # value in [0, 1) to 0, and multiplying after the cast would promote the
+    # result back to a floating dtype.
     if xp is numpy:
-        arr = numpy.random.random(shape).astype(dtype)
-        return arr * scale
+        arr = numpy.random.random(shape) * scale
+        return arr.astype(dtype)
     else:
         # For asnumpy, generate with numpy then convert
-        arr = numpy.random.random(shape).astype(dtype)
-        arr = arr * scale
+        arr = numpy.random.random(shape) * scale
+        arr = arr.astype(dtype)
         return xp.ndarray.from_numpy(arr)
 
 
