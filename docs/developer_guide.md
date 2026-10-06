@@ -581,6 +581,20 @@ def test_func(xp, order):
 - `numpy_asnumpy_array_equal()` - 比较数组是否完全相等
 - `numpy_asnumpy_allclose(rtol=1e-7, atol=0)` - 比较浮点数组是否接近（设置相对/绝对容差）
 
+`assert_array_equal` 对浮点及复数数组中相同位置的 NaN 采用
+[NumPy 测试断言的语义](https://numpy.org/doc/stable/reference/generated/numpy.testing.assert_array_equal.html)，
+避免把一致的特殊值结果判为不等；不同 NaN 位置、有限值或无穷符号仍会失败。
+原有形状、dtype 和可选 strides 检查保持严格。
+
+此比较逻辑及实际 `assert_array_list_equal` 调用链可在 Host 上回归：
+
+```bash
+python3 -m pytest tests/asnumpy_tests/testing_tests/test_array_assertion_nan.py -q
+```
+
+需要 NumPy 和 pytest。测试通过临时包路径加载真实 testing leaf 模块，
+不导入 asnumpy 原生扩展，因此不验证 NPU 算子执行或设备数值。
+
 ```python
 @testing.numpy_asnumpy_allclose(rtol=1e-5, atol=1e-8)
 def test_func(xp, dtype):
