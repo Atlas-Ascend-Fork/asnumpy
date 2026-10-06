@@ -27,6 +27,8 @@ import numpy as np
 def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
     """Assert that two arrays are exactly equal.
 
+    NaNs at matching positions compare equal, as in NumPy's testing assertions.
+
     Args:
         x: First array.
         y: Second array.
@@ -66,7 +68,7 @@ def assert_array_equal(x, y, err_msg="", verbose=True, strides_check=False):
         raise AssertionError(f"{err_msg}\n{msg}" if err_msg else msg)
 
     # Check values
-    if not np.array_equal(x, y):
+    if not np.array_equal(x, y, equal_nan=x.dtype.kind in "fc"):
         if verbose:
             msg = "Arrays are not equal."
             try:
