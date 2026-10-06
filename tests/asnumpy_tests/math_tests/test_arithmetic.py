@@ -244,13 +244,10 @@ def test_hypot_int(xp, dtype):
 @testing.for_dtypes([numpy.float32, numpy.float64])
 @testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
 def test_cross_basic(xp, dtype):
-    """二维批量向量的叉积（axis=-1 为 3 维向量所在的轴）"""
+    """二维批量向量的叉积（默认轴为最后一维）"""
     a = _create_array(xp, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype)
     b = _create_array(xp, [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]], dtype)
-    if xp is numpy:
-        return xp.cross(a, b, axis=-1)
-    # 适配当前 AsNumpy 的 axis 必须显式传入
-    return xp.cross(a, b, -1)
+    return xp.cross(a, b)
 
 
 @testing.for_dtypes([numpy.int32, numpy.int64])
@@ -259,9 +256,16 @@ def test_cross_int(xp, dtype):
     """一维整数向量的叉积，结果保持整数 dtype"""
     a = _create_array(xp, [1, 2, 3], dtype)
     b = _create_array(xp, [4, 5, 6], dtype)
-    if xp is numpy:
-        return xp.cross(a, b)
-    return xp.cross(a, b, -1)
+    return xp.cross(a, b)
+
+
+@testing.for_dtypes([numpy.float32, numpy.float64])
+@testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
+def test_cross_none_axis(xp, dtype):
+    """显式传入 axis=None 等价于默认的最后维"""
+    a = _create_array(xp, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype)
+    b = _create_array(xp, [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]], dtype)
+    return xp.cross(a, b, axis=None)
 
 
 @testing.for_dtypes([numpy.float32])

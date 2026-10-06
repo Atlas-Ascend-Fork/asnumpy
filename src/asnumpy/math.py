@@ -531,6 +531,8 @@ def nancumsum(a: ArrayLike, axis: AxisOptional = None, dtype: DTypeLike = None) 
 
 
 def cross(a: ArrayLike, b: ArrayLike, axis: AxisOptional = None) -> ndarray:
+    if axis is None:
+        axis = -1
     return ndarray(_cross(a, b, axis))
 
 
