@@ -60,11 +60,12 @@ def _normalize_norm_axis(axis: AxisLike, ndim: int):
 
     normalized = []
     for item in axes:
-        idx = int(item)
+        original_axis = int(item)
+        idx = original_axis
         if idx < 0:
             idx += ndim
         if idx < 0 or idx >= ndim:
-            raise np.AxisError(idx, ndim=ndim)
+            raise np.exceptions.AxisError(original_axis, ndim=ndim)
         normalized.append(idx)
 
     if len(set(normalized)) != len(normalized):
@@ -95,6 +96,7 @@ def norm(
     axis: AxisLike = None,
     keepdims: bool = False,
 ) -> ndarray:
+    """计算范数；越界轴抛出 numpy.exceptions.AxisError，并保留原始轴编号。"""
     host = _as_host_array(a)
     normalized_axis = _normalize_norm_axis(axis, host.ndim)
 
