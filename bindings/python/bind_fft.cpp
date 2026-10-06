@@ -14,7 +14,19 @@
  * limitations under the License.
  ******************************************************************************/
 
-#include <algorithm>
+#include <asnumpy/fft/fft.hpp>
 #include <pybind11/pybind11.h>
 
-void bind_fft(pybind11::module_& fft) { fft.doc() = "fft module of asnumpy"; }
+namespace py = pybind11;
+
+void bind_fft(py::module_& fft) {
+    fft.doc() = "fft module of asnumpy";
+
+    fft.def(
+        "fft", [](const NPUArray& x) { return asnumpy::fft::Fft1DC2C(x, /*inverse=*/false); }, py::arg("x"),
+        "One-dimensional complex-to-complex discrete Fourier transform of an NPU complex64 array.");
+
+    fft.def(
+        "ifft", [](const NPUArray& x) { return asnumpy::fft::Fft1DC2C(x, /*inverse=*/true); }, py::arg("x"),
+        "One-dimensional complex-to-complex inverse discrete Fourier transform, scaled by 1/n.");
+}
