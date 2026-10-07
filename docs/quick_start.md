@@ -93,13 +93,13 @@ assert np.allclose(npu_prod.to_numpy(), np.multiply(np_a, np_b))
 print("Verification passed.")
 ```
 
-## Checking the Device
+## Setting the Device
+
+AsNumpy auto-initializes and uses NPU device 0 on import. Switch to another
+device explicitly when needed:
 
 ```python
 import asnumpy as ap
-
-# Query available NPU devices
-print(ap.get_device_count())  # e.g. 8
 
 # Switch to a specific NPU (default is 0)
 ap.set_device(1)
