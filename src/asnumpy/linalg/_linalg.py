@@ -81,7 +81,17 @@ def matrix_power(a: ArrayLike, n: int) -> ndarray:
     return _to_asnumpy_array(np.linalg.matrix_power(host, n))
 
 
+_VALID_QR_MODES = ("reduced", "complete", "r")
+
+
 def qr(a: ArrayLike, mode: str = "reduced") -> ndarray | tuple:
+    if mode not in _VALID_QR_MODES:
+        raise ValueError(f"Unrecognized mode '{mode}'")
+    ndim = np.ndim(a)
+    if ndim < 2:
+        raise np.linalg.LinAlgError(
+            f"{ndim}-dimensional array given. Array must be at least two-dimensional"
+        )
     result = _qr(a, mode)
     if isinstance(result, tuple):
         q, r = result
