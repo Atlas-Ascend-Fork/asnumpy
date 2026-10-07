@@ -147,6 +147,14 @@ Contributions are welcome. Small fixes can be submitted directly as pull request
 
 See the [Developer Guide](docs/developer_guide.md) for build instructions, coding conventions, and how to add new operators.
 
+The `shaped_arange` and `shaped_reverse_arange` testing helpers support
+Boolean arrays by casting the generated sequence before backend conversion.
+Their Host regressions use real NumPy and do not load the NPU extension:
+
+```bash
+python -m pytest tests/host/test_shaped_bool_sequences.py
+```
+
 ## Resources
 
 - [Documentation](docs/)
