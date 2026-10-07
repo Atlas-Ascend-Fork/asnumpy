@@ -234,10 +234,10 @@ def _convert_dtype(dtype):
 
 @logger.catch(reraise=True)
 def _convert_size(size: int | Sequence[int]) -> Sequence[int]:
-    """Convert size from int to tuple"""
+    """Convert Python/NumPy integer sizes to a one-dimensional shape."""
     logger.debug(f"Converting size {size}")
-    if isinstance(size, int):
-        return (size,)
+    if isinstance(size, (int, np.integer)):
+        return (operator.index(size),)
     return size
 
 
