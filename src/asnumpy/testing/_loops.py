@@ -357,6 +357,8 @@ def _make_decorator(check_func, name, type_check, accept_error, sp_name=None, sc
 
                 # Compare results
                 if numpy_error is not None:
+                    if not accept_error:
+                        raise AssertionError("Unexpected NumPy exception") from numpy_error
                     if asnumpy_error is None:
                         raise AssertionError(
                             f"NumPy raised {type(numpy_error).__name__} "
@@ -405,6 +407,8 @@ def _make_decorator(check_func, name, type_check, accept_error, sp_name=None, sc
 
                 # Compare results
                 if numpy_error is not None:
+                    if not accept_error:
+                        raise AssertionError("Unexpected NumPy exception") from numpy_error
                     if asnumpy_error is None:
                         raise AssertionError(
                             f"NumPy raised {type(numpy_error).__name__} "
