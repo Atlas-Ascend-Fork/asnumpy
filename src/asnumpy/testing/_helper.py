@@ -78,15 +78,14 @@ def shaped_random(shape, dtype=numpy.float64, scale=1.0, seed=None, xp=None):
     if isinstance(shape, int):
         shape = (shape,)
 
-    if seed is not None:
-        numpy.random.seed(seed)
+    random = numpy.random if seed is None else numpy.random.RandomState(seed)
 
     if xp is numpy:
-        arr = numpy.random.random(shape).astype(dtype)
+        arr = random.random(shape).astype(dtype)
         return arr * scale
     else:
         # For asnumpy, generate with numpy then convert
-        arr = numpy.random.random(shape).astype(dtype)
+        arr = random.random(shape).astype(dtype)
         arr = arr * scale
         return xp.ndarray.from_numpy(arr)
 
@@ -208,13 +207,13 @@ def generate_test_data(func):
 
 # Common test constants
 TEST_SHAPES = [
-    (),          # scalar
-    (0,),        # empty array
-    (1,),        # single element
-    (5,),        # 1-D
-    (2, 3),      # 2-D
-    (2, 3, 4),   # 3-D
-    (1, 2, 3, 4),# 4-D
+    (),  # scalar
+    (0,),  # empty array
+    (1,),  # single element
+    (5,),  # 1-D
+    (2, 3),  # 2-D
+    (2, 3, 4),  # 3-D
+    (1, 2, 3, 4),  # 4-D
 ]
 
 TEST_DTYPES = [
