@@ -667,3 +667,9 @@ pip uninstall asnumpy -y && pip install -e .
 - [NumPy 文档](https://numpy.org/doc/stable/)
 - [Pybind11 文档](https://pybind11.readthedocs.io/)
 - [pytest 文档](https://docs.pytest.org/)
+
+### Python 复数弱标量 Host 回归
+
+与 NumPy 2 一致，FP16/FP32 数组和 Python `complex` 运算保留 complex64 精度；FP64 数组使用 complex128。NumPy 复数标量仍是强类型，不因这一转换降精度。弱标量转换使用 NumPy 的实际标量提升规则。
+
+运行 `python3 tests/asnumpy_tests/test_weak_complex_scalar_host.py` 可验证真实 ufunc 分发层的 dtype/数值/形状。该 Host 测试以 NumPy 计算 routine 和数组转换 fixture 替代 NPU 边界，不导入原生扩展，不代表设备算子或性能验证。
