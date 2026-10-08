@@ -37,6 +37,12 @@ import functools
 import numpy
 
 
+def _arange_with_dtype(start, stop, step, dtype):
+    if numpy.dtype(dtype).kind == "b":
+        return numpy.arange(start, stop, step).astype(dtype)
+    return numpy.arange(start, stop, step, dtype=dtype)
+
+
 def shaped_arange(shape, dtype=numpy.float64, order="C", xp=None, start=0):
     """Generate a sequential array with the given shape.
 
@@ -58,11 +64,11 @@ def shaped_arange(shape, dtype=numpy.float64, order="C", xp=None, start=0):
         size *= dim
 
     if xp is numpy:
-        arr = numpy.arange(start, start + size, dtype=dtype)
+        arr = _arange_with_dtype(start, start + size, 1, dtype)
         return arr.reshape(shape, order=order)
     else:
         # For asnumpy, generate with numpy then convert
-        arr = numpy.arange(start, start + size, dtype=dtype)
+        arr = _arange_with_dtype(start, start + size, 1, dtype)
         arr = arr.reshape(shape, order=order)
         return xp.ndarray.from_numpy(arr)
 
@@ -108,11 +114,11 @@ def shaped_reverse_arange(shape, dtype=numpy.float64, order="C", xp=None):
         size *= dim
 
     if xp is numpy:
-        arr = numpy.arange(size - 1, -1, -1, dtype=dtype)
+        arr = _arange_with_dtype(size - 1, -1, -1, dtype)
         return arr.reshape(shape, order=order)
     else:
         # For asnumpy, generate with numpy then convert
-        arr = numpy.arange(size - 1, -1, -1, dtype=dtype)
+        arr = _arange_with_dtype(size - 1, -1, -1, dtype)
         arr = arr.reshape(shape, order=order)
         return xp.ndarray.from_numpy(arr)
 
@@ -208,13 +214,13 @@ def generate_test_data(func):
 
 # Common test constants
 TEST_SHAPES = [
-    (),          # scalar
-    (0,),        # empty array
-    (1,),        # single element
-    (5,),        # 1-D
-    (2, 3),      # 2-D
-    (2, 3, 4),   # 3-D
-    (1, 2, 3, 4),# 4-D
+    (),  # scalar
+    (0,),  # empty array
+    (1,),  # single element
+    (5,),  # 1-D
+    (2, 3),  # 2-D
+    (2, 3, 4),  # 3-D
+    (1, 2, 3, 4),  # 4-D
 ]
 
 TEST_DTYPES = [
