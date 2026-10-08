@@ -90,6 +90,8 @@ class _AsnpNpz:
         self.close()
 
     def close(self):
+        """Release the archive's cached arrays; caller-owned arrays remain valid."""
+        self._cache.clear()
         self._npz.close()
 
     @property
