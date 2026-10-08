@@ -121,16 +121,20 @@ def for_dtypes(dtypes, name="dtype"):
     def decorator(impl):
         # Wrap as a no-argument function so pytest does not treat params as fixtures
         @functools.wraps(impl)
-        def test_func():
+        def test_func(*args, **kwargs):
             for dtype in dtypes:
                 try:
-                    impl(**{name: dtype})
+                    parameters = dict(kwargs)
+                    parameters[name] = dtype
+                    impl(*args, **parameters)
                 except Exception:
                     logger.debug(f"{name} is {dtype}")
                     raise
 
-        # Clear signature so pytest sees a no-argument function
-        test_func.__signature__ = inspect.Signature()
+        # Hide only the supplied dtype; retain self and external fixtures.
+        signature = inspect.signature(impl)
+        parameters = [p for p in signature.parameters.values() if p.name != name]
+        test_func.__signature__ = signature.replace(parameters=parameters)
         return test_func
 
     return decorator
