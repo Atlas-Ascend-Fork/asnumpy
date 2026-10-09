@@ -476,8 +476,10 @@ def prod(
     keepdims: bool = False,
     dtype: DTypeLike = None,
 ) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
-        return _prod(a)  # type: ignore[no-any-return]
+        return _prod(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
     return ndarray(_prod(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -487,8 +489,10 @@ def sum(
     keepdims: bool = False,
     dtype: DTypeLike = None,
 ) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
-        return _sum(a)  # type: ignore[no-any-return]
+        return _sum(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
     return ndarray(_sum(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -498,8 +502,10 @@ def nanprod(
     keepdims: bool = False,
     dtype: DTypeLike = None,
 ) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
-        return _nanprod(a)  # type: ignore[no-any-return]
+        return _nanprod(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
     return ndarray(_nanprod(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -509,8 +515,10 @@ def nansum(
     keepdims: bool = False,
     dtype: DTypeLike = None,
 ) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
-        return _nansum(a)  # type: ignore[no-any-return]
+        return _nansum(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
     return ndarray(_nansum(a, axis, keepdims, _convert_dtype(dtype)))
 
 
@@ -691,36 +699,48 @@ def fmin(x1: ArrayLike, x2: ArrayLike, dtype: DTypeLike = None) -> ndarray:
 
 
 def max(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _max(a)  # type: ignore[no-any-return]
     return ndarray(_max(a, axis, keepdims))
 
 
 def amax(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _amax(a)  # type: ignore[no-any-return]
     return ndarray(_amax(a, axis, keepdims))
 
 
 def nanmax(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _nanmax(a)  # type: ignore[no-any-return]
     return ndarray(_nanmax(a, axis, keepdims))
 
 
 def nanmin(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _nanmin(a)  # type: ignore[no-any-return]
     return ndarray(_nanmin(a, axis, keepdims))
 
 
 def min(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _min(a)  # type: ignore[no-any-return]
     return ndarray(_min(a, axis, keepdims))
 
 
 def amin(a: ArrayLike, axis: AxisOptional = None, keepdims: bool = False) -> ndarray | float:
+    if axis is None and keepdims:
+        axis = tuple(range(getattr(a, "ndim", 0))) or None
     if axis is None:
         return _amin(a)  # type: ignore[no-any-return]
     return ndarray(_amin(a, axis, keepdims))
