@@ -404,6 +404,35 @@ NPUArray Irfft(const NPUArray& x, int64_t axis, int64_t n, double scale) {
     return result;
 }
 
+NPUArray Fft2C2C(const NPUArray& x, int64_t axis0, int64_t axis1, int64_t n0, int64_t n1, bool inverse,
+                 double scale0, double scale1) {
+    ValidateTransformInput(x, axis0, ACL_COMPLEX64);
+    ValidateTransformInput(x, axis1, ACL_COMPLEX64);
+    ValidateLength(n0);
+    ValidateLength(n1);
+
+    // ops-fft's native two-dimensional operator (fft2_d) is restricted to nx, ny in {32, 64, 128} on
+    // Ascend 910B and is not implemented on Ascend 950, so the general path applies two verified
+    // one-dimensional ops-fft transforms, one per axis; both passes execute on the NPU. The array is
+    // bridged through the host once: the passes ping-pong between host buffers and a single H2D copy
+    // publishes the result. This is *not* the native two-dimensional kernel, and it carries the
+    // host-side layout overhead documented in docs/fft.md.
+    //
+    // The passes run in reverse axis order because that is what NumPy's _raw_fftnd does; the order
+    // is observable when the same axis is given twice with different lengths, where NumPy ends up
+    // with the length of the first entry.
+    std::vector<int64_t> shape1;
+    std::vector<int64_t> shape2;
+    std::vector<aclfftComplex> buffer1;
+    std::vector<aclfftComplex> buffer2;
+    Apply1DC2C(CopyToHost(x), x.shape, axis1, n1, inverse, scale1, shape1, buffer1);
+    Apply1DC2C(buffer1, shape1, axis0, n0, inverse, scale0, shape2, buffer2);
+
+    NPUArray result(shape2, ACL_COMPLEX64);
+    CopyToDevice(buffer2, shape2, result);
+    return result;
+}
+
 #else // ASNUMPY_ENABLE_FFT
 
 namespace {
@@ -419,6 +448,7 @@ namespace {
 NPUArray FftC2C(const NPUArray&, int64_t, int64_t, bool, double) { BackendUnavailable(); }
 NPUArray Rfft(const NPUArray&, int64_t, int64_t, double) { BackendUnavailable(); }
 NPUArray Irfft(const NPUArray&, int64_t, int64_t, double) { BackendUnavailable(); }
+NPUArray Fft2C2C(const NPUArray&, int64_t, int64_t, int64_t, int64_t, bool, double, double) { BackendUnavailable(); }
 
 #endif // ASNUMPY_ENABLE_FFT
 

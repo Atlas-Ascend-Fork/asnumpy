@@ -26,7 +26,7 @@ host while the FFT itself stays on the device. See ``docs/fft.md`` for the suppo
 measured backend conventions.
 """
 
-__all__ = ["fft", "ifft", "irfft", "rfft"]
+__all__ = ["fft", "fft2", "ifft", "ifft2", "irfft", "rfft"]
 
 import math
 import operator
@@ -162,3 +162,68 @@ def irfft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
     else:
         length = _resolve_length(n, a.shape[ax])
     return ndarray(_fft.irfft(a, ax, length, _norm_factor(True, norm, length)))
+
+
+def _normalize_axes(axes, ndim: int, name: str) -> tuple[int, int]:
+    if isinstance(axes, (bool, int, np.integer)) or not hasattr(axes, "__iter__"):
+        raise TypeError(
+            f"asnumpy.fft.{name} expects a sequence of two axes, got {type(axes).__name__}"
+        )
+    items = tuple(axes)
+    if len(items) != 2:
+        raise NotImplementedError(
+            f"asnumpy.fft.{name} implements exactly two axes, got {len(items)}; transforming a "
+            "different number of axes (fftn/ifftn) is out of scope for this version"
+        )
+    return (_normalize_axis(items[0], ndim), _normalize_axis(items[1], ndim))
+
+
+def _resolve_sizes(s, axes: tuple[int, int], shape, name: str) -> tuple[int, int]:
+    if s is None:
+        return (shape[axes[0]], shape[axes[1]])
+    if isinstance(s, (bool, int, np.integer)) or not hasattr(s, "__iter__"):
+        raise TypeError(
+            f"asnumpy.fft.{name} expects s to be a sequence of two lengths, got {type(s).__name__}"
+        )
+    items = tuple(s)
+    if len(items) != len(axes):
+        raise ValueError("Shape and axes have different lengths.")
+    return (_resolve_length(items[0], 0), _resolve_length(items[1], 0))
+
+
+def fft2(a: ArrayLike, s=None, axes=(-2, -1), norm=None) -> ndarray:
+    """Compute the two-dimensional discrete Fourier transform of an NPU array.
+
+    Counterpart of :func:`numpy.fft.fft2` for complex64 input: the transform runs over ``axes``
+    (default: the last two dimensions) and every other dimension is a batch. ``s`` gives the
+    transform length for each of the two axes (shorter input is truncated, longer zero padded).
+
+    Execution path: two one-dimensional ops-fft transforms, one per axis, both on the NPU — the
+    native two-dimensional ops-fft kernel only covers 32/64/128 per axis on Ascend 910B.
+    """
+    a = _require_array(a, "fft2")
+    _require_dtype(a, _COMPLEX64, "fft2")
+    ax0, ax1 = _normalize_axes(axes, a.ndim, "fft2")
+    n0, n1 = _resolve_sizes(s, (ax0, ax1), a.shape, "fft2")
+    return ndarray(
+        _fft.fft2_c2c(
+            a, ax0, ax1, n0, n1, False, _norm_factor(False, norm, n0), _norm_factor(False, norm, n1)
+        )
+    )
+
+
+def ifft2(a: ArrayLike, s=None, axes=(-2, -1), norm=None) -> ndarray:
+    """Compute the two-dimensional inverse discrete Fourier transform of an NPU array.
+
+    Counterpart of :func:`numpy.fft.ifft2` for complex64 input, with the same ``s``/``axes``/``norm``
+    semantics as :func:`asnumpy.fft.fft2` (``norm=None``/``"backward"`` scales by ``1/(n0*n1)``).
+    """
+    a = _require_array(a, "ifft2")
+    _require_dtype(a, _COMPLEX64, "ifft2")
+    ax0, ax1 = _normalize_axes(axes, a.ndim, "ifft2")
+    n0, n1 = _resolve_sizes(s, (ax0, ax1), a.shape, "ifft2")
+    return ndarray(
+        _fft.fft2_c2c(
+            a, ax0, ax1, n0, n1, True, _norm_factor(True, norm, n0), _norm_factor(True, norm, n1)
+        )
+    )

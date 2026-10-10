@@ -74,5 +74,30 @@ NPUArray Rfft(const NPUArray& x, int64_t axis, int64_t n, double scale);
  */
 NPUArray Irfft(const NPUArray& x, int64_t axis, int64_t n, double scale);
 
+/**
+ * @brief Two-dimensional complex-to-complex FFT over two axes, batched over the other dimensions.
+ *
+ * Equivalent to numpy.fft.fft2(x, s=(n0, n1), axes=(axis0, axis1)) /
+ * numpy.fft.ifft2(...) for complex64 input.
+ *
+ * Execution path: ops-fft's native two-dimensional operator only covers nx, ny in {32, 64, 128} on
+ * Ascend 910B (and is absent on Ascend 950), so this applies two one-dimensional ops-fft transforms
+ * along ``axis0`` and ``axis1`` in NumPy's order. Both passes run on the NPU; the array is bridged
+ * through the host once and the two passes ping-pong between host buffers. The per-axis scale
+ * factors reproduce NumPy's per-axis normalisation, which keeps the total scaling of a two-axis
+ * transform consistent with NumPy (including for repeated axes).
+ *
+ * @param x complex64 input array on the NPU (rank >= 2).
+ * @param axis0 first non-negative transformed axis.
+ * @param axis1 second non-negative transformed axis; may equal `axis0` (NumPy allows it).
+ * @param n0 transform length along `axis0` (truncate or zero pad).
+ * @param n1 transform length along `axis1` (truncate or zero pad).
+ * @param inverse false for the forward transform, true for the inverse transform.
+ * @param scale0 factor applied to the first pass, scale1 to the second.
+ * @return NPUArray complex64 array with both transformed axes resized.
+ */
+NPUArray Fft2C2C(const NPUArray& x, int64_t axis0, int64_t axis1, int64_t n0, int64_t n1, bool inverse,
+                 double scale0, double scale1);
+
 } // namespace fft
 } // namespace asnumpy

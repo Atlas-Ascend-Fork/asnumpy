@@ -34,4 +34,9 @@ void bind_fft(py::module_& fft) {
     fft.def("irfft", &asnumpy::fft::Irfft, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("scale"),
             "Complex-to-real inverse FFT along one axis; the spectrum axis must be Hermitian and the "
             "output axis has length n.");
+
+    fft.def("fft2_c2c", &asnumpy::fft::Fft2C2C, py::arg("x"), py::arg("axis0"), py::arg("axis1"), py::arg("n0"),
+            py::arg("n1"), py::arg("inverse"), py::arg("scale0"), py::arg("scale1"),
+            "Two-dimensional complex-to-complex FFT over two axes, implemented as two one-dimensional "
+            "ops-fft passes (the native fft2_d kernel is limited to 32/64/128 on Ascend 910B).");
 }
