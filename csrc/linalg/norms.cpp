@@ -18,6 +18,7 @@
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
 #include <asnumpy/utils/cast.hpp>
+#include <asnumpy/utils/shape_check.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 
 #include <acl/acl.h>
@@ -43,20 +44,24 @@ NPUArray CastToDtype(const NPUArray& input, aclDataType targetDtype) { return as
 } // anonymous namespace
 
 NPUArray Linalg_Norm(const NPUArray& a, double ord, const std::vector<int64_t>& axis, bool keepdims) {
+    // NumPy axis semantics: normalize negatives, reject out-of-range / duplicates
+    auto axes = detail::NormalizeAxes(axis, a.shape.size(), "norm");
     LOG_DEBUG("aclnnNorm start: input_shape={}, aclDtype={}, ord={}, axis={}, keepdims={}",
               detail::FormatShape(a.shape), AclDtypeName(a.aclDtype), ord, detail::FormatShape(axis), keepdims);
     auto shape = a.shape;
     if (keepdims) {
-        for (int i = 0; i < axis.size(); i++) {
-            shape[axis[i]] = 1;
+        for (auto ax : axes) {
+            shape[ax] = 1;
         }
     } else {
-        for (int i = 0; i < axis.size(); i++) {
-            shape.erase(shape.begin() + axis[i]);
+        // erase back-to-front: erasing front-first shifts later indices and
+        // deletes the wrong axes whenever more than one axis is given
+        for (auto it = axes.rbegin(); it != axes.rend(); ++it) {
+            shape.erase(shape.begin() + *it);
         }
     }
     auto ord_scalar = aclCreateScalar(&ord, ACL_DOUBLE);
-    aclIntArray* axis_array = aclCreateIntArray(axis.data(), axis.size());
+    aclIntArray* axis_array = aclCreateIntArray(axes.data(), axes.size());
     auto result = NPUArray(shape, ACL_FLOAT);
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor;
@@ -73,6 +78,8 @@ NPUArray Linalg_Norm(const NPUArray& a, double ord, const std::vector<int64_t>& 
 }
 
 NPUArray Linalg_Det(const NPUArray& a) {
+    // shape.erase(end - 2, end) below is an invalid iterator for rank < 2
+    detail::CheckNdimsAtLeast(a, 2, "det");
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
     std::vector<int64_t> shape = a.shape;
@@ -120,6 +127,8 @@ NPUArray Linalg_Det(const NPUArray& a) {
 }
 
 std::pair<NPUArray, NPUArray> Linalg_Slogdet(const NPUArray& a) {
+    // shape.erase(end - 2, end) below is an invalid iterator for rank < 2
+    detail::CheckNdimsAtLeast(a, 2, "slogdet");
     LOG_DEBUG("aclnnSlogdet start: input_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype));
     auto shape = a.shape;
