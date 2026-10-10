@@ -119,6 +119,46 @@ find_package(spdlog REQUIRED PATHS /usr/lib64/cmake /usr/lib/cmake /usr/lib/aarc
 message(STATUS "Using system spdlog: ${spdlog_VERSION}")
 add_compile_definitions(SPDLOG_FMT_EXTERNAL)
 
+# ========== ops-blas (optional matmul backend) ==========
+# asnumpy.matmul can optionally run on CANN ops-blas instead of the default host path. The dependency
+# is never downloaded and no path is hardcoded: point ASNUMPY_OPS_BLAS_ROOT at an ops-blas checkout or
+# build tree (containing include/cann_ops_blas.h and the ops-blas shared library), or set the
+# include/library variables directly. On Ascend 910B the only implemented GEMM entry is
+# aclblasSgemmStridedBatched; see docs/matmul_backend.md.
+option(ASNUMPY_ENABLE_OPS_BLAS "Build the optional ops-blas matmul backend" OFF)
+set(ASNUMPY_OPS_BLAS_ROOT "$ENV{ASNUMPY_OPS_BLAS_ROOT}" CACHE PATH
+    "ops-blas prefix containing include/cann_ops_blas.h and the ops-blas shared library")
+
+if(ASNUMPY_ENABLE_OPS_BLAS)
+    if(NOT ASNUMPY_OPS_BLAS_INCLUDE_DIR AND ASNUMPY_OPS_BLAS_ROOT)
+        find_path(ASNUMPY_OPS_BLAS_INCLUDE_DIR cann_ops_blas.h
+                  PATHS "${ASNUMPY_OPS_BLAS_ROOT}" "${ASNUMPY_OPS_BLAS_ROOT}/include"
+                  NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_BLAS_LIBRARY AND ASNUMPY_OPS_BLAS_ROOT)
+        find_library(ASNUMPY_OPS_BLAS_LIBRARY ops_blas
+                     PATHS "${ASNUMPY_OPS_BLAS_ROOT}"
+                           "${ASNUMPY_OPS_BLAS_ROOT}/build-lib"
+                           "${ASNUMPY_OPS_BLAS_ROOT}/build"
+                           "${ASNUMPY_OPS_BLAS_ROOT}/lib64"
+                           "${ASNUMPY_OPS_BLAS_ROOT}/lib"
+                     NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_BLAS_INCLUDE_DIR OR NOT ASNUMPY_OPS_BLAS_LIBRARY)
+        message(FATAL_ERROR
+            "ASNUMPY_ENABLE_OPS_BLAS=ON, but ops-blas was not found (include='${ASNUMPY_OPS_BLAS_INCLUDE_DIR}', "
+            "library='${ASNUMPY_OPS_BLAS_LIBRARY}').\n"
+            "Clone and build ops-blas for the target SoC first:\n"
+            "  git clone https://gitcode.com/cann/ops-blas.git && cd ops-blas\n"
+            "  cmake -S . -B build-lib -DSOC_VERSION=ascend910b3 -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=Release\n"
+            "  cmake --build build-lib -j\n"
+            "then configure asnumpy with -DASNUMPY_ENABLE_OPS_BLAS=ON -DASNUMPY_OPS_BLAS_ROOT=<ops-blas root>.")
+    endif()
+    message(STATUS "ops-blas enabled: ${ASNUMPY_OPS_BLAS_LIBRARY} (include: ${ASNUMPY_OPS_BLAS_INCLUDE_DIR})")
+else()
+    message(STATUS "ops-blas disabled: asnumpy.matmul keeps the default backend")
+endif()
+
 # ========== Source directories ==========
 include_directories(include)
 add_subdirectory(csrc)
