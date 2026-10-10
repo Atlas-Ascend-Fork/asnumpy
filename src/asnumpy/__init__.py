@@ -59,7 +59,7 @@ if TYPE_CHECKING:
         zeros,
         zeros_like,
     )
-    from .fft import ifft
+    from .fft import ifft, irfft, rfft
     from .io import load, save, savez, savez_compressed
     from .linalg.direct import _direct_all_, dot, einsum, inner, matmul, outer, vdot
     from .logic import (
@@ -232,6 +232,8 @@ _LAZY_MAPPING = {
     # .fft
     "fft": ".fft",
     "ifft": ".fft",
+    "irfft": ".fft",
+    "rfft": ".fft",
     # .linalg
     "linalg": ".linalg",
     # .linalg.direct

@@ -156,6 +156,39 @@ void UnpackRows(const std::vector<aclfftComplex>& packed, const AxisLayout& layo
     }
 }
 
+/// Float counterpart of PackRows, used by the real-to-complex transform.
+void PackRowsFloat(const float* src, const AxisLayout& layout, int64_t src_len, int64_t packed_len,
+                   std::vector<float>& packed) {
+    const int64_t copy = std::min(src_len, packed_len);
+    for (int64_t o = 0; o < layout.outer; ++o) {
+        for (int64_t i = 0; i < layout.inner; ++i) {
+            const int64_t batch = o * layout.inner + i;
+            float* row = packed.data() + batch * packed_len;
+            const float* base = src + o * src_len * layout.inner + i;
+            for (int64_t j = 0; j < copy; ++j) {
+                row[j] = base[j * layout.inner];
+            }
+            for (int64_t j = copy; j < packed_len; ++j) {
+                row[j] = 0.0f;
+            }
+        }
+    }
+}
+
+/// Float counterpart of UnpackRows, used by the complex-to-real transform.
+void UnpackRowsFloat(const std::vector<float>& packed, const AxisLayout& layout, int64_t dst_len, float* dst) {
+    for (int64_t o = 0; o < layout.outer; ++o) {
+        for (int64_t i = 0; i < layout.inner; ++i) {
+            const int64_t batch = o * layout.inner + i;
+            const float* row = packed.data() + batch * dst_len;
+            float* base = dst + o * dst_len * layout.inner + i;
+            for (int64_t j = 0; j < dst_len; ++j) {
+                base[j * layout.inner] = row[j];
+            }
+        }
+    }
+}
+
 /// Create one ops-fft plan for `batches` transforms of length `n` and run `body` with it.
 /// The plan is always destroyed, including on the error paths.
 template <typename Fn> void WithPlan1D(int64_t batches, int64_t n, aclfftType type, Fn&& body) {
@@ -183,9 +216,9 @@ void ValidateTransformInput(const NPUArray& x, int64_t axis, aclDataType expecte
         throw std::invalid_argument(
             fmt::format("asnumpy.fft: axis {} is out of bounds for a {}-dimensional array", axis, x.shape.size()));
     }
-    if (x.shape[axis] == 0) {
-        throw std::invalid_argument("asnumpy.fft: invalid number of FFT data points (0) specified");
-    }
+    // A zero-length transform axis is not rejected here: NumPy accepts it whenever an explicit n
+    // supplies the length (fft(empty, n=4) and rfft(empty, n=5) are valid), and the packing below
+    // turns such an axis into an all-zero row. The public layer rejects the n=None case.
 }
 
 void ValidateLength(int64_t n) {
@@ -213,6 +246,26 @@ void CopyToDevice(const std::vector<aclfftComplex>& host, const std::vector<int6
     const int64_t elements = ShapeSize(shape);
     if (elements > 0) {
         const size_t bytes = BytesFor(elements, sizeof(aclfftComplex));
+        auto error = aclrtMemcpy(dst.device_address(), bytes, host.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "aclrtMemcpy(host->device)");
+    }
+}
+
+std::vector<float> CopyToHostFloat(const NPUArray& x) {
+    const int64_t elements = ShapeSize(x.shape);
+    std::vector<float> host(static_cast<size_t>(elements));
+    if (elements > 0) {
+        const size_t bytes = BytesFor(elements, sizeof(float));
+        auto error = aclrtMemcpy(host.data(), bytes, x.device_address(), bytes, ACL_MEMCPY_DEVICE_TO_HOST);
+        ACL_RT_CHECK(error, "aclrtMemcpy(device->host)");
+    }
+    return host;
+}
+
+void CopyToDeviceFloat(const std::vector<float>& host, const std::vector<int64_t>& shape, NPUArray& dst) {
+    const int64_t elements = ShapeSize(shape);
+    if (elements > 0) {
+        const size_t bytes = BytesFor(elements, sizeof(float));
         auto error = aclrtMemcpy(dst.device_address(), bytes, host.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
         ACL_RT_CHECK(error, "aclrtMemcpy(host->device)");
     }
@@ -248,6 +301,65 @@ void Apply1DC2C(const std::vector<aclfftComplex>& src, const std::vector<int64_t
     UnpackRows(packed_out, layout, n, dst.data());
 }
 
+/// Apply one batched 1-D real-to-complex transform: the transformed axis becomes n/2+1 complex bins.
+void Apply1DR2C(const std::vector<float>& src, const std::vector<int64_t>& src_shape, int64_t axis, int64_t n,
+                double scale, std::vector<int64_t>& dst_shape, std::vector<aclfftComplex>& dst) {
+    const int64_t spectrum = n / 2 + 1;
+    dst_shape = src_shape;
+    dst_shape[axis] = spectrum;
+    dst.assign(static_cast<size_t>(ShapeSize(dst_shape)), aclfftComplex{0.0f, 0.0f});
+
+    const AxisLayout layout = ComputeLayout(src_shape, axis);
+    const int64_t batches = layout.Batches();
+    if (batches == 0) {
+        return;
+    }
+
+    std::vector<float> packed_in(static_cast<size_t>(CheckedMul(batches, n, "packed input")));
+    std::vector<aclfftComplex> packed_out(static_cast<size_t>(CheckedMul(batches, spectrum, "packed output")));
+    PackRowsFloat(src.data(), layout, src_shape[axis], n, packed_in);
+    WithPlan1D(batches, n, ACLFFT_R2C, [&](aclfftHandle plan) {
+        CheckAclfft(aclfftExecR2C(plan, packed_in.data(), packed_out.data()), "aclfftExecR2C");
+    });
+    if (scale != 1.0) {
+        for (auto& value : packed_out) {
+            value.x = static_cast<float>(static_cast<double>(value.x) * scale);
+            value.y = static_cast<float>(static_cast<double>(value.y) * scale);
+        }
+    }
+    UnpackRows(packed_out, layout, spectrum, dst.data());
+}
+
+/// Apply one batched 1-D complex-to-real transform: the input holds n/2+1 bins, the output n reals.
+void Apply1DC2R(const std::vector<aclfftComplex>& src, const std::vector<int64_t>& src_shape, int64_t axis, int64_t n,
+                double scale, std::vector<int64_t>& dst_shape, std::vector<float>& dst) {
+    const int64_t spectrum = n / 2 + 1;
+    dst_shape = src_shape;
+    dst_shape[axis] = n;
+    dst.assign(static_cast<size_t>(ShapeSize(dst_shape)), 0.0f);
+
+    const AxisLayout layout = ComputeLayout(src_shape, axis);
+    const int64_t batches = layout.Batches();
+    if (batches == 0) {
+        return;
+    }
+
+    std::vector<aclfftComplex> packed_in(static_cast<size_t>(CheckedMul(batches, spectrum, "packed input")));
+    std::vector<float> packed_out(static_cast<size_t>(CheckedMul(batches, n, "packed output")));
+    // PackRows truncates a longer spectrum and zero-pads a shorter one, which is exactly NumPy's
+    // rule for irfft with an explicit n.
+    PackRows(src.data(), layout, src_shape[axis], spectrum, packed_in);
+    WithPlan1D(batches, n, ACLFFT_C2R, [&](aclfftHandle plan) {
+        CheckAclfft(aclfftExecC2R(plan, packed_in.data(), packed_out.data()), "aclfftExecC2R");
+    });
+    if (scale != 1.0) {
+        for (auto& value : packed_out) {
+            value = static_cast<float>(static_cast<double>(value) * scale);
+        }
+    }
+    UnpackRowsFloat(packed_out, layout, n, dst.data());
+}
+
 } // namespace
 
 NPUArray FftC2C(const NPUArray& x, int64_t axis, int64_t n, bool inverse, double scale) {
@@ -264,6 +376,34 @@ NPUArray FftC2C(const NPUArray& x, int64_t axis, int64_t n, bool inverse, double
     return result;
 }
 
+NPUArray Rfft(const NPUArray& x, int64_t axis, int64_t n, double scale) {
+    ValidateTransformInput(x, axis, ACL_FLOAT);
+    ValidateLength(n);
+
+    std::vector<float> host_in = CopyToHostFloat(x);
+    std::vector<int64_t> out_shape;
+    std::vector<aclfftComplex> host_out;
+    Apply1DR2C(host_in, x.shape, axis, n, scale, out_shape, host_out);
+
+    NPUArray result(out_shape, ACL_COMPLEX64);
+    CopyToDevice(host_out, out_shape, result);
+    return result;
+}
+
+NPUArray Irfft(const NPUArray& x, int64_t axis, int64_t n, double scale) {
+    ValidateTransformInput(x, axis, ACL_COMPLEX64);
+    ValidateLength(n);
+
+    std::vector<aclfftComplex> host_in = CopyToHost(x);
+    std::vector<int64_t> out_shape;
+    std::vector<float> host_out;
+    Apply1DC2R(host_in, x.shape, axis, n, scale, out_shape, host_out);
+
+    NPUArray result(out_shape, ACL_FLOAT);
+    CopyToDeviceFloat(host_out, out_shape, result);
+    return result;
+}
+
 #else // ASNUMPY_ENABLE_FFT
 
 namespace {
@@ -277,6 +417,8 @@ namespace {
 } // namespace
 
 NPUArray FftC2C(const NPUArray&, int64_t, int64_t, bool, double) { BackendUnavailable(); }
+NPUArray Rfft(const NPUArray&, int64_t, int64_t, double) { BackendUnavailable(); }
+NPUArray Irfft(const NPUArray&, int64_t, int64_t, double) { BackendUnavailable(); }
 
 #endif // ASNUMPY_ENABLE_FFT
 

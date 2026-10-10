@@ -26,7 +26,7 @@ host while the FFT itself stays on the device. See ``docs/fft.md`` for the suppo
 measured backend conventions.
 """
 
-__all__ = ["fft", "ifft"]
+__all__ = ["fft", "ifft", "irfft", "rfft"]
 
 import math
 import operator
@@ -38,6 +38,7 @@ from .._types import ArrayLike
 from ..utils import ndarray
 
 _COMPLEX64 = np.dtype(np.complex64)
+_REAL32 = np.dtype(np.float32)
 _NORMS = (None, "backward", "forward", "ortho")
 
 
@@ -125,3 +126,39 @@ def ifft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
     ax = _normalize_axis(axis, a.ndim)
     length = _resolve_length(n, a.shape[ax])
     return ndarray(_fft.fft_c2c(a, ax, length, True, _norm_factor(True, norm, length)))
+
+
+def rfft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
+    """Compute the one-dimensional FFT of a real NPU array.
+
+    Counterpart of :func:`numpy.fft.rfft` for float32 input: the transformed axis of the result holds
+    the non-negative frequency terms and has length ``n // 2 + 1``. ``n`` truncates or zero pads the
+    real input; ``norm`` follows NumPy (``None``/``"backward"`` leaves the forward transform
+    unscaled).
+    """
+    a = _require_array(a, "rfft")
+    _require_dtype(a, _REAL32, "rfft")
+    ax = _normalize_axis(axis, a.ndim)
+    length = _resolve_length(n, a.shape[ax])
+    return ndarray(_fft.rfft(a, ax, length, _norm_factor(False, norm, length)))
+
+
+def irfft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
+    """Compute the inverse of :func:`asnumpy.fft.rfft` for an NPU half-spectrum.
+
+    Counterpart of :func:`numpy.fft.irfft` for complex64 input. With ``n=None`` the output length is
+    derived from the input length ``m`` as ``2 * (m - 1)``, which cannot recover an odd original
+    length: an odd-length round trip must pass the original length explicitly, i.e.
+    ``irfft(rfft(x), n=len(x))``. When ``n`` is given the input is truncated or zero padded to
+    ``n // 2 + 1`` bins first, exactly as NumPy does.
+    """
+    a = _require_array(a, "irfft")
+    _require_dtype(a, _COMPLEX64, "irfft")
+    ax = _normalize_axis(axis, a.ndim)
+    if n is None:
+        length = 2 * (a.shape[ax] - 1)
+        if length <= 0:
+            raise ValueError(f"Invalid number of FFT data points ({length}) specified.")
+    else:
+        length = _resolve_length(n, a.shape[ax])
+    return ndarray(_fft.irfft(a, ax, length, _norm_factor(True, norm, length)))

@@ -27,4 +27,11 @@ void bind_fft(py::module_& fft) {
             "Complex-to-complex FFT along one axis, batched over the remaining dimensions. "
             "The caller passes an already-normalised non-negative axis, the transform length and the "
             "single scale factor applied to the backend result.");
+
+    fft.def("rfft", &asnumpy::fft::Rfft, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("scale"),
+            "Real-to-complex FFT along one axis; the transformed axis becomes n/2+1 complex bins.");
+
+    fft.def("irfft", &asnumpy::fft::Irfft, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("scale"),
+            "Complex-to-real inverse FFT along one axis; the spectrum axis must be Hermitian and the "
+            "output axis has length n.");
 }
