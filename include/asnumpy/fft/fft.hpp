@@ -22,24 +22,27 @@ namespace asnumpy {
 namespace fft {
 
 /**
- * @brief One-dimensional complex-to-complex FFT, backed by CANN ops-fft.
+ * @brief Complex-to-complex FFT along one axis, batched over the remaining dimensions.
  *
- * Equivalent to numpy.fft.fft(x) / numpy.fft.ifft(x) for a one-dimensional
- * complex64 array. Only the transform itself runs on the NPU: ops-fft's public
- * aclfftExecC2C contract takes host pointers and performs the Device transfers
- * and the stream synchronisation internally, so this wrapper copies the input
- * to the host, executes the plan and copies the result back to a new NPU array.
+ * Equivalent to numpy.fft.fft(x, n=n, axis=axis) / numpy.fft.ifft(x, n=n, axis=axis) for a
+ * complex64 array: the transform runs along `axis` (already a normalised non-negative index) and
+ * every other dimension is a batch.
  *
- * The inverse transform is normalised by 1/N here: ops-fft returns the
- * unnormalised result (ACLFFT_BACKWARD == N * ifft).
+ * The array is gathered on the host into (batch, n) row-major buffers, transformed by one ops-fft
+ * plan created with that batch count, and copied back into a new NPU array. Only the transform
+ * runs on the NPU: ops-fft's aclfftExecC2C takes host pointers and performs the device transfers
+ * and the synchronisation internally, so exactly one host<->device round trip happens here.
  *
- * @param x One-dimensional complex64 array on the NPU.
+ * @param x complex64 input array on the NPU.
+ * @param axis non-negative index of the transformed axis.
+ * @param n transform length along `axis`; shorter input is truncated, longer input is zero padded.
  * @param inverse false for the forward transform, true for the inverse transform.
- * @return NPUArray One-dimensional complex64 array on the NPU, same length as x.
- * @throws std::invalid_argument for unsupported rank, dtype or length.
- * @throws std::runtime_error when the backend is unavailable or the plan fails.
+ * @param scale factor applied once to the backend result (all NumPy normalisation lives here).
+ * @return NPUArray complex64 array whose `axis` dimension has length `n`.
+ * @throws std::invalid_argument for an unsupported dtype, axis, or length.
+ * @throws std::runtime_error when the backend is unavailable or a plan call fails.
  */
-NPUArray Fft1DC2C(const NPUArray& x, bool inverse);
+NPUArray FftC2C(const NPUArray& x, int64_t axis, int64_t n, bool inverse, double scale);
 
 } // namespace fft
 } // namespace asnumpy

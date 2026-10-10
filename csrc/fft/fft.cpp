@@ -19,7 +19,9 @@
 #include <acl/acl.h>
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -36,7 +38,7 @@ namespace fft {
 
 namespace {
 
-/// ops-fft's 1-D FFT sizes are bounded by 2^27 for every kernel path on Ascend 910B / 950.
+/// ops-fft supports 1-D sizes up to 2^27 on every kernel path of the supported SoCs.
 constexpr int64_t kMaxFftSize = int64_t{1} << 27;
 
 /// Translate an aclfftResult into a Python-visible exception carrying the library message.
@@ -70,72 +72,211 @@ class ScopedAclfftPlan {
     aclfftHandle plan_ = nullptr;
 };
 
-} // namespace
-
-NPUArray Fft1DC2C(const NPUArray& x, bool inverse) {
-    if (x.shape.size() != 1) {
-        throw std::invalid_argument(fmt::format(
-            "asnumpy.fft: only one-dimensional transforms are supported, got a {}-dimensional array", x.shape.size()));
+/// Element counts come from user shapes; keep every intermediate product checked.
+int64_t CheckedMul(int64_t a, int64_t b, const char* what) {
+    if (a != 0 && b > std::numeric_limits<int64_t>::max() / a) {
+        throw std::overflow_error(fmt::format("asnumpy.fft: {} element count overflows int64", what));
     }
-    if (x.aclDtype != ACL_COMPLEX64) {
+    return a * b;
+}
+
+int64_t ShapeSize(const std::vector<int64_t>& shape) {
+    int64_t size = 1;
+    for (size_t i = 0; i < shape.size(); ++i) {
+        size = CheckedMul(size, shape[i], "array");
+    }
+    return size;
+}
+
+/// ops-fft takes int parameters; reject anything that cannot be represented.
+int ToInt(int64_t value, const char* what) {
+    if (value <= 0 || value > std::numeric_limits<int32_t>::max()) {
         throw std::invalid_argument(
-            fmt::format("asnumpy.fft: only complex64 input is supported, got {}", AclDtypeName(x.aclDtype)));
+            fmt::format("asnumpy.fft: {}={} is outside the supported range 1..2^31-1", what, value));
     }
+    return static_cast<int>(value);
+}
 
-    const int64_t n = x.shape[0];
+size_t BytesFor(int64_t elements, size_t element_size) {
+    return static_cast<size_t>(CheckedMul(elements, static_cast<int64_t>(element_size), "buffer"));
+}
+
+/// Factorization of an array shape around one transformed axis: the batch count is outer * inner.
+struct AxisLayout {
+    int64_t outer = 1;
+    int64_t inner = 1;
+
+    int64_t Batches() const { return outer * inner; }
+};
+
+AxisLayout ComputeLayout(const std::vector<int64_t>& shape, int64_t axis) {
+    AxisLayout layout;
+    for (int64_t i = 0; i < axis; ++i) {
+        layout.outer = CheckedMul(layout.outer, shape[i], "outer");
+    }
+    for (int64_t i = axis + 1; i < static_cast<int64_t>(shape.size()); ++i) {
+        layout.inner = CheckedMul(layout.inner, shape[i], "inner");
+    }
+    return layout;
+}
+
+/// Gather `src` (row-major, `src_shape`) into packed rows of `packed_len` along `axis`.
+/// Positions beyond `src_len` are zero, which implements NumPy's zero padding.
+void PackRows(const aclfftComplex* src, const AxisLayout& layout, int64_t src_len, int64_t packed_len,
+              std::vector<aclfftComplex>& packed) {
+    const aclfftComplex zero{0.0f, 0.0f};
+    const int64_t copy = std::min(src_len, packed_len);
+    for (int64_t o = 0; o < layout.outer; ++o) {
+        for (int64_t i = 0; i < layout.inner; ++i) {
+            const int64_t batch = o * layout.inner + i;
+            aclfftComplex* row = packed.data() + batch * packed_len;
+            const aclfftComplex* base = src + o * src_len * layout.inner + i;
+            for (int64_t j = 0; j < copy; ++j) {
+                row[j] = base[j * layout.inner];
+            }
+            for (int64_t j = copy; j < packed_len; ++j) {
+                row[j] = zero;
+            }
+        }
+    }
+}
+
+/// Scatter packed rows (row stride `dst_len`) back into a row-major array shaped `dst_shape`.
+void UnpackRows(const std::vector<aclfftComplex>& packed, const AxisLayout& layout, int64_t dst_len,
+                aclfftComplex* dst) {
+    for (int64_t o = 0; o < layout.outer; ++o) {
+        for (int64_t i = 0; i < layout.inner; ++i) {
+            const int64_t batch = o * layout.inner + i;
+            const aclfftComplex* row = packed.data() + batch * dst_len;
+            aclfftComplex* base = dst + o * dst_len * layout.inner + i;
+            for (int64_t j = 0; j < dst_len; ++j) {
+                base[j * layout.inner] = row[j];
+            }
+        }
+    }
+}
+
+/// Create one ops-fft plan for `batches` transforms of length `n` and run `body` with it.
+/// The plan is always destroyed, including on the error paths.
+template <typename Fn> void WithPlan1D(int64_t batches, int64_t n, aclfftType type, Fn&& body) {
+    ScopedAclfftPlan plan;
+    CheckAclfft(aclfftPlan1d(plan.out(), ToInt(n, "n"), type, ToInt(batches, "batch"), ACLFFT_HORIZONTAL),
+                "aclfftPlan1d");
+    // The plan runs on the default stream, exactly like the aclnn operators elsewhere in asnumpy
+    // (submitted with a null stream). aclfftExecC2C synchronises internally; the device
+    // synchronisation below keeps asnumpy's established post-operator contract.
+    CheckAclfft(aclfftSetStream(plan.get(), nullptr), "aclfftSetStream");
+    body(plan.get());
+    auto error = aclrtSynchronizeDevice();
+    ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+}
+
+void ValidateTransformInput(const NPUArray& x, int64_t axis, aclDataType expected) {
+    if (x.aclDtype != expected) {
+        throw std::invalid_argument(fmt::format("asnumpy.fft: only {} input is supported, got {}",
+                                                AclDtypeName(expected), AclDtypeName(x.aclDtype)));
+    }
+    if (x.shape.empty()) {
+        throw std::invalid_argument("asnumpy.fft: a zero-dimensional array has no transform axis");
+    }
+    if (axis < 0 || axis >= static_cast<int64_t>(x.shape.size())) {
+        throw std::invalid_argument(
+            fmt::format("asnumpy.fft: axis {} is out of bounds for a {}-dimensional array", axis, x.shape.size()));
+    }
+    if (x.shape[axis] == 0) {
+        throw std::invalid_argument("asnumpy.fft: invalid number of FFT data points (0) specified");
+    }
+}
+
+void ValidateLength(int64_t n) {
     if (n <= 0) {
-        throw std::invalid_argument("asnumpy.fft: input must contain at least one element");
+        throw std::invalid_argument(fmt::format("asnumpy.fft: invalid number of FFT data points ({}) specified", n));
     }
     if (n > kMaxFftSize) {
         throw std::invalid_argument(
             fmt::format("asnumpy.fft: transform size {} exceeds the supported maximum 2^27", n));
     }
+}
 
-    const size_t bytes = static_cast<size_t>(n) * sizeof(aclfftComplex);
-    std::vector<aclfftComplex> host_in(static_cast<size_t>(n));
-    std::vector<aclfftComplex> host_out(static_cast<size_t>(n));
+std::vector<aclfftComplex> CopyToHost(const NPUArray& x) {
+    const int64_t elements = ShapeSize(x.shape);
+    std::vector<aclfftComplex> host(static_cast<size_t>(elements));
+    if (elements > 0) {
+        const size_t bytes = BytesFor(elements, sizeof(aclfftComplex));
+        auto error = aclrtMemcpy(host.data(), bytes, x.device_address(), bytes, ACL_MEMCPY_DEVICE_TO_HOST);
+        ACL_RT_CHECK(error, "aclrtMemcpy(device->host)");
+    }
+    return host;
+}
 
-    auto error = aclrtMemcpy(host_in.data(), bytes, x.device_address(), bytes, ACL_MEMCPY_DEVICE_TO_HOST);
-    ACL_RT_CHECK(error, "aclrtMemcpy(device->host)");
+void CopyToDevice(const std::vector<aclfftComplex>& host, const std::vector<int64_t>& shape, NPUArray& dst) {
+    const int64_t elements = ShapeSize(shape);
+    if (elements > 0) {
+        const size_t bytes = BytesFor(elements, sizeof(aclfftComplex));
+        auto error = aclrtMemcpy(dst.device_address(), bytes, host.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
+        ACL_RT_CHECK(error, "aclrtMemcpy(host->device)");
+    }
+}
 
-    // batch == 1 and ACLFFT_HORIZONTAL: a one-dimensional transform over the whole array.
-    ScopedAclfftPlan plan;
-    CheckAclfft(aclfftPlan1d(plan.out(), static_cast<int>(n), ACLFFT_C2C, 1, ACLFFT_HORIZONTAL), "aclfftPlan1d");
-    // The plan runs on the default stream, like every other asnumpy operator (aclnn operators are
-    // submitted with a null stream as well); aclfftExecC2C synchronises before it returns.
-    CheckAclfft(aclfftSetStream(plan.get(), nullptr), "aclfftSetStream");
-    CheckAclfft(aclfftExecC2C(plan.get(), host_in.data(), host_out.data(), inverse ? ACLFFT_BACKWARD : ACLFFT_FORWARD),
-                "aclfftExecC2C");
-    plan.reset();
+/// Apply one batched 1-D complex transform along `axis`, producing `dst_shape`/`dst`.
+void Apply1DC2C(const std::vector<aclfftComplex>& src, const std::vector<int64_t>& src_shape, int64_t axis, int64_t n,
+                bool inverse, double scale, std::vector<int64_t>& dst_shape, std::vector<aclfftComplex>& dst) {
+    dst_shape = src_shape;
+    dst_shape[axis] = n;
+    dst.assign(static_cast<size_t>(ShapeSize(dst_shape)), aclfftComplex{0.0f, 0.0f});
 
-    error = aclrtSynchronizeDevice();
-    ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
-
-    if (inverse) {
-        // ACLFFT_BACKWARD is unnormalised (returns N * ifft), so the 1/N that numpy.fft.ifft
-        // promises is applied exactly once, here, on the host buffer.
-        const float scale = 1.0f / static_cast<float>(n);
-        for (auto& value : host_out) {
-            value.x *= scale;
-            value.y *= scale;
-        }
+    const AxisLayout layout = ComputeLayout(src_shape, axis);
+    const int64_t batches = layout.Batches();
+    if (batches == 0) {
+        return; // an empty batch dimension stays an empty result (NumPy returns an empty array)
     }
 
-    NPUArray result({n}, ACL_COMPLEX64);
-    error = aclrtMemcpy(result.device_address(), bytes, host_out.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
-    ACL_RT_CHECK(error, "aclrtMemcpy(host->device)");
+    std::vector<aclfftComplex> packed_in(static_cast<size_t>(CheckedMul(batches, n, "packed input")));
+    std::vector<aclfftComplex> packed_out(static_cast<size_t>(CheckedMul(batches, n, "packed output")));
+    PackRows(src.data(), layout, src_shape[axis], n, packed_in);
+    WithPlan1D(batches, n, ACLFFT_C2C, [&](aclfftHandle plan) {
+        CheckAclfft(
+            aclfftExecC2C(plan, packed_in.data(), packed_out.data(), inverse ? ACLFFT_BACKWARD : ACLFFT_FORWARD),
+            "aclfftExecC2C");
+    });
+    if (scale != 1.0) {
+        for (auto& value : packed_out) {
+            value.x = static_cast<float>(static_cast<double>(value.x) * scale);
+            value.y = static_cast<float>(static_cast<double>(value.y) * scale);
+        }
+    }
+    UnpackRows(packed_out, layout, n, dst.data());
+}
+
+} // namespace
+
+NPUArray FftC2C(const NPUArray& x, int64_t axis, int64_t n, bool inverse, double scale) {
+    ValidateTransformInput(x, axis, ACL_COMPLEX64);
+    ValidateLength(n);
+
+    std::vector<aclfftComplex> host_in = CopyToHost(x);
+    std::vector<int64_t> out_shape;
+    std::vector<aclfftComplex> host_out;
+    Apply1DC2C(host_in, x.shape, axis, n, inverse, scale, out_shape, host_out);
+
+    NPUArray result(out_shape, ACL_COMPLEX64);
+    CopyToDevice(host_out, out_shape, result);
     return result;
 }
 
 #else // ASNUMPY_ENABLE_FFT
 
-NPUArray Fft1DC2C(const NPUArray&, bool) {
+namespace {
+[[noreturn]] void BackendUnavailable() {
     throw std::runtime_error("asnumpy.fft is not available: this asnumpy build was compiled without CANN ops-fft. "
                              "Build ops-fft for your SoC (git clone https://gitcode.com/cann/ops-fft.git && "
                              "bash build.sh --pkg --soc=Ascend910B), install it (./build_out/*.run --full --quiet "
                              "--install-path=<prefix>), then rebuild asnumpy with -DASNUMPY_ENABLE_FFT=ON and "
                              "-DASNUMPY_OPS_FFT_ROOT=<prefix>.");
 }
+} // namespace
+
+NPUArray FftC2C(const NPUArray&, int64_t, int64_t, bool, double) { BackendUnavailable(); }
 
 #endif // ASNUMPY_ENABLE_FFT
 

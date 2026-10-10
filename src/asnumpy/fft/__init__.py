@@ -14,22 +14,21 @@
 # limitations under the License.
 # *****************************************************************************
 
-"""Discrete Fourier transforms on the NPU.
+"""Discrete Fourier transforms on the NPU, backed by CANN ops-fft.
 
-Scope of this first version:
+Implemented so far: ``fft``/``ifft`` for complex64 arrays along one axis (every other dimension is
+treated as a batch), with NumPy's ``n``/``axis``/``norm`` semantics.
 
-* only one-dimensional transforms of ``complex64`` arrays are supported;
-* ``n`` is either ``None`` or the input length (no padding/truncation);
-* ``axis`` is ``-1`` or ``0``, which are the same axis for a one-dimensional array;
-* ``norm`` is ``None``/``"backward"``: the forward transform is unscaled and the
-  inverse transform is scaled by ``1/n``, exactly like NumPy.
-
-Anything outside that scope raises ``NotImplementedError`` rather than silently
-falling back to a host/NumPy implementation or ignoring an argument.
+The numerical transform always runs on the NPU through ops-fft. ops-fft's public ``aclfftExec*``
+functions take *host* pointers and perform the device transfers internally, so each call bridges the
+array through the host once; the layout work (truncation, zero padding, batching) happens on the
+host while the FFT itself stays on the device. See ``docs/fft.md`` for the support matrix and the
+measured backend conventions.
 """
 
 __all__ = ["fft", "ifft"]
 
+import math
 import operator
 
 import numpy as np
@@ -38,61 +37,91 @@ from .._core import fft as _fft
 from .._types import ArrayLike
 from ..utils import ndarray
 
-_SUPPORTED_NORMS = (None, "backward")
+_COMPLEX64 = np.dtype(np.complex64)
+_NORMS = (None, "backward", "forward", "ortho")
 
 
-def _as_complex64_vector(a: ArrayLike, name: str) -> ndarray:
-    """Return ``a`` after checking that the NPU backend can handle it."""
+def _require_array(a: ArrayLike, name: str) -> ndarray:
     if not isinstance(a, ndarray):
         raise TypeError(
-            f"asnumpy.fft.{name} only accepts an asnumpy.ndarray on the NPU, got "
-            f"{type(a).__name__}; convert host data with asnumpy.ndarray.from_numpy(...) first"
+            f"asnumpy.fft.{name} only accepts an asnumpy.ndarray on the NPU, got {type(a).__name__}; "
+            "convert host data with asnumpy.ndarray.from_numpy(...) first"
         )
-    if a.ndim != 1:
-        raise NotImplementedError(
-            f"asnumpy.fft.{name} currently supports one-dimensional transforms only, got {a.ndim} dimensions"
-        )
-    if a.dtype != np.complex64:
-        raise TypeError(f"asnumpy.fft.{name} only supports complex64 input, got {a.dtype}")
     return a
 
 
-def _check_args(a: ArrayLike, n, axis, norm, name: str) -> None:
-    if n is not None:
-        length = operator.index(n)
-        if length != a.shape[0]:
-            raise NotImplementedError(
-                f"asnumpy.fft.{name} does not support padding or truncation yet: n={length} "
-                f"but the input length is {a.shape[0]}"
-            )
+def _require_dtype(a: ndarray, dtype: np.dtype, name: str) -> None:
+    if a.dtype != dtype:
+        raise TypeError(f"asnumpy.fft.{name} only supports {dtype.name} input, got {a.dtype}")
+
+
+def _normalize_axis(axis: int, ndim: int) -> int:
+    """Turn a (possibly negative) axis into a non-negative index, mirroring NumPy's checks."""
     if isinstance(axis, bool):
         raise TypeError("an integer is required")
     index = operator.index(axis)
-    if index not in (0, -1):
-        raise np.exceptions.AxisError(axis, ndim=1)
-    if norm not in _SUPPORTED_NORMS:
-        raise NotImplementedError(
-            f"asnumpy.fft.{name} only supports norm=None/'backward', got norm={norm!r}"
-        )
+    if index < 0:
+        index += ndim
+    if index < 0 or index >= ndim:
+        raise np.exceptions.AxisError(axis, ndim=ndim)
+    return index
+
+
+def _resolve_length(n, default: int) -> int:
+    """Resolve ``n`` to a positive transform length, rejecting the values NumPy rejects."""
+    if n is None:
+        length = default
+    else:
+        if isinstance(n, bool):
+            raise TypeError("an integer is required")
+        length = operator.index(n)
+    if length <= 0:
+        raise ValueError(f"Invalid number of FFT data points ({length}) specified.")
+    return length
+
+
+def _norm_factor(inverse: bool, norm, n: int) -> float:
+    """Factor applied exactly once to the ops-fft result.
+
+    Measured convention of ops-fft (commit 294cbc5, Ascend 910B, CANN 9.1.0): every direction
+    returns the *unnormalised* transform, i.e. ``ACLFFT_BACKWARD == n * numpy.ifft`` and the C2R
+    inverse is ``n * numpy.irfft``, while the forward C2C and R2C results already match NumPy's
+    unscaled forward transforms. NumPy's normalisation is therefore applied here, once, and never
+    combined with a second backend-side factor.
+    """
+    if norm not in _NORMS:
+        raise ValueError(f'Invalid norm value {norm}; should be "backward", "ortho" or "forward".')
+    if norm in (None, "backward"):
+        return 1.0 / n if inverse else 1.0
+    if norm == "forward":
+        return 1.0 if inverse else 1.0 / n
+    return 1.0 / math.sqrt(n)
 
 
 def fft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
-    """Compute the one-dimensional discrete Fourier transform of an NPU array.
+    """Compute the discrete Fourier transform of an NPU array along one axis.
 
-    This is the NPU-backed counterpart of :func:`numpy.fft.fft` for
-    one-dimensional ``complex64`` input; the result is unscaled.
+    Counterpart of :func:`numpy.fft.fft` for complex64 input: the transform runs along ``axis``
+    (default: the last one) and every other dimension is a batch. ``n`` shorter than the axis
+    truncates, longer zero pads; ``norm`` accepts ``None``/``"backward"``, ``"forward"`` and
+    ``"ortho"`` with NumPy's scaling.
     """
-    a = _as_complex64_vector(a, "fft")
-    _check_args(a, n, axis, norm, "fft")
-    return ndarray(_fft.fft(a))
+    a = _require_array(a, "fft")
+    _require_dtype(a, _COMPLEX64, "fft")
+    ax = _normalize_axis(axis, a.ndim)
+    length = _resolve_length(n, a.shape[ax])
+    return ndarray(_fft.fft_c2c(a, ax, length, False, _norm_factor(False, norm, length)))
 
 
 def ifft(a: ArrayLike, n=None, axis: int = -1, norm=None) -> ndarray:
-    """Compute the one-dimensional inverse discrete Fourier transform of an NPU array.
+    """Compute the inverse discrete Fourier transform of an NPU array along one axis.
 
-    This is the NPU-backed counterpart of :func:`numpy.fft.ifft` for
-    one-dimensional ``complex64`` input; the result is scaled by ``1/n``.
+    Counterpart of :func:`numpy.fft.ifft` for complex64 input, with the same ``n``/``axis``/``norm``
+    semantics as :func:`asnumpy.fft.fft` (the inverse is scaled by ``1/n`` when ``norm`` is
+    ``None``/``"backward"``).
     """
-    a = _as_complex64_vector(a, "ifft")
-    _check_args(a, n, axis, norm, "ifft")
-    return ndarray(_fft.ifft(a))
+    a = _require_array(a, "ifft")
+    _require_dtype(a, _COMPLEX64, "ifft")
+    ax = _normalize_axis(axis, a.ndim)
+    length = _resolve_length(n, a.shape[ax])
+    return ndarray(_fft.fft_c2c(a, ax, length, True, _norm_factor(True, norm, length)))

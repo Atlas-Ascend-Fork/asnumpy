@@ -22,11 +22,9 @@ namespace py = pybind11;
 void bind_fft(py::module_& fft) {
     fft.doc() = "fft module of asnumpy";
 
-    fft.def(
-        "fft", [](const NPUArray& x) { return asnumpy::fft::Fft1DC2C(x, /*inverse=*/false); }, py::arg("x"),
-        "One-dimensional complex-to-complex discrete Fourier transform of an NPU complex64 array.");
-
-    fft.def(
-        "ifft", [](const NPUArray& x) { return asnumpy::fft::Fft1DC2C(x, /*inverse=*/true); }, py::arg("x"),
-        "One-dimensional complex-to-complex inverse discrete Fourier transform, scaled by 1/n.");
+    fft.def("fft_c2c", &asnumpy::fft::FftC2C, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("inverse"),
+            py::arg("scale"),
+            "Complex-to-complex FFT along one axis, batched over the remaining dimensions. "
+            "The caller passes an already-normalised non-negative axis, the transform length and the "
+            "single scale factor applied to the backend result.");
 }
