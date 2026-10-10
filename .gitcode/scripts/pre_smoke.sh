@@ -27,13 +27,12 @@ log() {
 
 log "init test case, please wait ..."
 
-PYTHON_BIN="${PYTHON_BIN:?The workflow must select Python}"
 export PIP_INDEX_URL="${PIP_INDEX_URL:-https://repo.huaweicloud.com/repository/pypi/simple}"
 
 apt-get update
 apt-get install -y wget unzip
-"${PYTHON_BIN}" -m pip install --upgrade pip
-"${PYTHON_BIN}" -m pip install pytest pytest-xdist
+python3 -m pip install --upgrade pip
+python3 -m pip install pytest pytest-xdist
 
 package_name="${package_name:-cann-asnumpy-linux-arm.whl}"
 wget "https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/${package_name}"
@@ -46,15 +45,15 @@ TAG=$(unzip -p "${package_name}" '*.dist-info/WHEEL' | grep -m1 "^Tag:" | awk '{
 echo "版本号: ${VERSION}  标签: ${TAG}"
 wheel_file="asnumpy-${VERSION}-${TAG}.whl"
 mv "${package_name}" "${wheel_file}"
-"${PYTHON_BIN}" -m pip install "${wheel_file}"
+python3 -m pip install "${wheel_file}"
 
 set +e
-"${PYTHON_BIN}" -m pytest tests/ -n 8 -v 2>&1 | tee -a ./run_test.log
+python3 -m pytest tests/ -n 8 -v 2>&1 | tee -a ./run_test.log
 pytest_exit_code=${PIPESTATUS[0]}
 set -e
 
 echo "pip3 install obs"
-"${PYTHON_BIN}" -m pip install esdk-obs-python \
+python3 -m pip install esdk-obs-python \
     --trusted-host repo.huaweicloud.com \
     -i https://repo.huaweicloud.com/repository/pypi/simple
 

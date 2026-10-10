@@ -14,9 +14,6 @@ on:
 jobs:
   JOB_smoke:
     name: PreSmoke
-    strategy:
-      matrix:
-        python_version: ['3.12', '3.13', '3.14']
     timeout-minutes: 30
     steps:
       -
@@ -26,10 +23,6 @@ jobs:
         with:
           allow-unsafe-pr-checkout: true
           ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
-      - name: setup-python
-        uses: setup-python
-        with:
-          python-version: ${{ matrix.python_version }}
       -
         name: download
         uses: obs-download
@@ -47,10 +40,7 @@ jobs:
       -
         name: smoke executor
         run: |
-          export PYTHON_BIN=$(command -v python)
-          export PYTHON_VERSION=${{ matrix.python_version }}
-          "$PYTHON_BIN" -c 'import os, sys; sys.exit(0 if f"{sys.version_info.major}.{sys.version_info.minor}" == os.environ["PYTHON_VERSION"] else "Python version mismatch")' || exit 1
-          export obs_path=${{ env.obs_path }}/py${{ matrix.python_version }}
+          export obs_path=${{ env.obs_path }}
           export repo_name=${{env.repo_name}}
           export pr_id=${{ env.MERGE_ID }}
           export AK=${{secrets.AK}}
@@ -67,7 +57,7 @@ jobs:
           access-key: ${{ secrets.AK }}
           secret-key: ${{ secrets.SK }}
           artifact-path: "${{ steps.process_checkout.outputs.path }}/slog*.tar.gz"
-          object-prefix: ${{ env.obs_path }}/presmoke/${{ inputs.arch }}/py${{ matrix.python_version }}/plog/
+          object-prefix: ${{ env.obs_path }}/presmoke/${{ inputs.arch }}/plog/
     if: env.TARGET_BRANCH == 'master'
     runs-on:
       - self-hosted
