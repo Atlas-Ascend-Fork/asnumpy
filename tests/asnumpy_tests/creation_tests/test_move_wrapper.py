@@ -79,6 +79,36 @@ def test_from_numpy_preserves_metadata_and_values():
     numpy.testing.assert_array_equal(result.to_numpy(), host)
 
 
+def test_from_numpy_strided_slice_roundtrip():
+    # upstream issue #41: from_numpy 假定 C 连续布局，步长切片此前拷入底层
+    # 缓冲的前 N 个元素（静默数据错乱），现在先归一为连续副本
+    host = numpy.arange(10, dtype=numpy.float32)[::2]
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
+def test_from_numpy_transpose_roundtrip():
+    host = numpy.arange(6, dtype=numpy.float32).reshape(2, 3).T
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
+def test_from_numpy_negative_stride_roundtrip():
+    # 负步长的 info.ptr 指向缓冲区末尾，直接向后 memcpy 会越界读 host 内存
+    host = numpy.arange(5, dtype=numpy.float32)[::-1]
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
 def test_public_ndarray_constructor_keeps_source_valid():
     expected = numpy.array([1.0, 2.0, 3.0], dtype=numpy.float32)
     source = asnumpy.ndarray.from_numpy(expected)

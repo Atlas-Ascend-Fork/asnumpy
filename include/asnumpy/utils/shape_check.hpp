@@ -79,5 +79,26 @@ inline std::vector<int64_t> NormalizeAxes(const std::vector<int64_t>& axes, size
     return normalized;
 }
 
+/**
+ * @brief Overflow-checked multiplication for shape / byte-size math.
+ *
+ * Shape products and element-count * itemsize both feed allocation sizes; a
+ * wrapped-around result would allocate far less memory than the aclTensor
+ * claims to address, so every multiplication must be checked. Signed overflow
+ * is undefined behavior, hence __builtin_mul_overflow.
+ *
+ * @param a Left factor.
+ * @param b Right factor.
+ * @return int64_t a * b when it fits.
+ * @throw std::invalid_argument when the product overflows int64_t.
+ */
+inline int64_t CheckedMul(int64_t a, int64_t b) {
+    int64_t result = 0;
+    if (__builtin_mul_overflow(a, b, &result)) {
+        throw std::invalid_argument(fmt::format("size calculation overflow: {} * {} exceeds int64 range", a, b));
+    }
+    return result;
+}
+
 } // namespace detail
 } // namespace asnumpy

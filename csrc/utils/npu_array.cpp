@@ -16,6 +16,7 @@
 
 #include <asnumpy/dtypes/dtype_table.hpp>
 #include <asnumpy/utils/npu_array.hpp>
+#include <asnumpy/utils/shape_check.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 #include <cstddef>
 
@@ -34,14 +35,17 @@ NPUArray::NPUArray(const std::vector<int64_t>& shape, py::dtype dtype) {
     this->dtype = dtype;
     this->aclDtype = GetACLDataType(dtype);
     tensorSize = GetShapeSize(shape);
-    auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
+    auto tensorByteSize =
+        asnumpy::detail::CheckedMul(static_cast<int64_t>(this->tensorSize), GetDataTypeSize(this->aclDtype));
     this->devicePtr = nullptr;
     if (tensorByteSize > 0) {
         auto error = aclrtMalloc(&this->devicePtr, tensorByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
         ACL_RT_CHECK(error, "aclrtMalloc");
     }
     this->strides.resize(this->shape.size());
-    auto currentStride = 1;
+    // int64_t, not auto: `auto currentStride = 1` deduces int and silently truncates
+    // strides once the running element count exceeds INT_MAX.
+    int64_t currentStride = 1;
     for (int64_t i = this->shape.size() - 1; i >= 0; i--) {
         this->strides[i] = currentStride;
         currentStride *= this->shape[i];
@@ -66,7 +70,8 @@ NPUArray::NPUArray(const std::vector<int64_t>& shape, aclDataType acl_type) {
     this->shape = shape;
     this->aclDtype = acl_type;
     this->tensorSize = GetShapeSize(shape);
-    auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
+    auto tensorByteSize =
+        asnumpy::detail::CheckedMul(static_cast<int64_t>(this->tensorSize), GetDataTypeSize(this->aclDtype));
 
     // use ACL type directly; do not create NumPy dtype
     // for compatibility, create an empty py::dtype object
@@ -78,7 +83,9 @@ NPUArray::NPUArray(const std::vector<int64_t>& shape, aclDataType acl_type) {
         ACL_RT_CHECK(error, "aclrtMalloc");
     }
     this->strides.resize(this->shape.size());
-    auto currentStride = 1;
+    // int64_t, not auto: `auto currentStride = 1` deduces int and silently truncates
+    // strides once the running element count exceeds INT_MAX.
+    int64_t currentStride = 1;
     for (int64_t i = this->shape.size() - 1; i >= 0; i--) {
         this->strides[i] = currentStride;
         currentStride *= this->shape[i];
@@ -101,7 +108,8 @@ NPUArray::NPUArray(const NPUArray& other) {
     this->aclDtype = other.aclDtype;
     this->tensorSize = other.tensorSize;
     this->strides = other.strides;
-    auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
+    auto tensorByteSize =
+        asnumpy::detail::CheckedMul(static_cast<int64_t>(this->tensorSize), GetDataTypeSize(this->aclDtype));
     this->devicePtr = nullptr;
     if (tensorByteSize > 0) {
         auto error = aclrtMalloc(&this->devicePtr, tensorByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
@@ -170,7 +178,8 @@ NPUArray& NPUArray::operator=(const NPUArray& other) {
         this->tensorSize = other.tensorSize;
         this->strides = other.strides;
 
-        auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
+        auto tensorByteSize =
+            asnumpy::detail::CheckedMul(static_cast<int64_t>(this->tensorSize), GetDataTypeSize(this->aclDtype));
         this->devicePtr = nullptr;
         if (tensorByteSize > 0) {
             auto error = aclrtMalloc(&this->devicePtr, tensorByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
@@ -258,7 +267,26 @@ NPUArray::~NPUArray() {
  */
 NPUArray NPUArray::FromNumpy(py::array hostData) {
     py::buffer_info info = hostData.request();
-    auto tensorByteSize = info.size * info.itemsize;
+    // The copy below assumes a C-contiguous host buffer. Sliced / transposed /
+    // negative-stride inputs are not: copying info.ptr verbatim would pull in
+    // the wrong bytes (and read out of bounds for negative strides). Normalize
+    // such inputs to a contiguous copy first, mirroring torch.from_numpy.
+    auto is_c_contiguous = [&info] {
+        int64_t expected = info.itemsize;
+        for (size_t i = info.ndim; i-- > 0;) {
+            if (info.strides[i] != expected) {
+                return false;
+            }
+            expected *= info.shape[i];
+        }
+        return true;
+    }();
+    if (!is_c_contiguous) {
+        hostData = py::array::ensure(py::module_::import("numpy").attr("ascontiguousarray")(hostData));
+        info = hostData.request();
+    }
+    auto tensorByteSize =
+        asnumpy::detail::CheckedMul(static_cast<int64_t>(info.size), static_cast<int64_t>(info.itemsize));
     auto result = NPUArray(info.shape, hostData.dtype());
     if (tensorByteSize == 0)
         return result;
@@ -285,7 +313,8 @@ NPUArray NPUArray::FromNumpy(py::array hostData) {
  * @throws std::runtime_error If tensor size doesn't match NumPy array size.
  */
 py::array NPUArray::ToNumpy() const {
-    auto tensorByteSize = this->tensorSize * GetDataTypeSize(this->aclDtype);
+    auto tensorByteSize =
+        asnumpy::detail::CheckedMul(static_cast<int64_t>(this->tensorSize), GetDataTypeSize(this->aclDtype));
 
     // create result array
     py::array result(this->dtype, this->shape);
@@ -334,7 +363,7 @@ int64_t NPUArray::GetShapeSize(const std::vector<int64_t>& shape) {
         if (i < 0) {
             throw std::runtime_error("[npu_array.cpp](GetShapeSize) Shape Dimensions Must Be Non-Negative!");
         }
-        shapeSize *= i;
+        shapeSize = asnumpy::detail::CheckedMul(shapeSize, i);
     }
     return shapeSize;
 }
