@@ -58,6 +58,14 @@ target_link_libraries(_core
     nn
 )
 
+# libops_solver.so lives in its own build/install prefix, so the installed _core.so must carry that
+# directory in its run path; otherwise importing asnumpy fails with a loader error. The directory
+# comes from the user-supplied dependency path, never from a hardcoded constant.
+if(ASNUMPY_ENABLE_OPS_SOLVER)
+    get_filename_component(_asnumpy_ops_solver_libdir "${ASNUMPY_OPS_SOLVER_LIBRARY}" DIRECTORY)
+    set_property(TARGET _core APPEND PROPERTY INSTALL_RPATH "${_asnumpy_ops_solver_libdir}")
+endif()
+
 # Install the compiled module
 install(TARGETS _core
         LIBRARY DESTINATION "asnumpy"
