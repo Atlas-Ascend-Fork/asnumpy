@@ -255,3 +255,10 @@ def _normalize_shape(shape: int | Sequence[int]) -> list[int]:
         raise ValueError("negative dimensions are not allowed")
 
     return normalized
+
+
+def _ensure_ndarray(a) -> ndarray:
+    """Coerce an ArrayLike argument to a public ndarray (host inputs are copied to device)."""
+    if isinstance(a, ndarray):
+        return a
+    return ndarray.from_numpy(np.asarray(a))
