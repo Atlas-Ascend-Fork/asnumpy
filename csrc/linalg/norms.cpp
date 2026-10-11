@@ -68,6 +68,8 @@ NPUArray Linalg_Norm(const NPUArray& a, double ord, const std::vector<int64_t>& 
     ACLNN_CHECK(error, "aclnnNorm");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(ord_scalar);
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnNorm completed");
     return result;
 }
