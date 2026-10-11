@@ -33,19 +33,19 @@ from ._core.cann import (
 )
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def set_device(device_id: int) -> None:
     logger.info(f"Setting device to {device_id}")
     _set_device(device_id)
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def reset_device(device_id: int) -> None:
     logger.info(f"Resetting device {device_id}")
     _reset_device(device_id)
 
 
-@logger.catch
+@logger.catch(reraise=True)
 def reset_device_force(device_id: int) -> None:
     logger.info(f"Force resetting device {device_id}")
     _reset_device_force(device_id)
