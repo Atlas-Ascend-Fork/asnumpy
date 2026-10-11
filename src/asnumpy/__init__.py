@@ -169,7 +169,7 @@ if TYPE_CHECKING:
     )
     from .nn import softmax
     from .sorting import sort
-    from .statistics import mean
+    from .statistics import mean, nanmean
     from .utils import broadcast_shape, ndarray
 
 
@@ -347,6 +347,7 @@ _LAZY_MAPPING = {
     "sort": ".sorting",
     # .statistics
     "mean": ".statistics",
+    "nanmean": ".statistics",
     # .nn
     "softmax": ".nn",
     # .io

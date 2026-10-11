@@ -27,4 +27,10 @@
 namespace asnumpy {
 NPUArray Mean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::dtype> dtype = std::nullopt);
 py::object Mean(const NPUArray& a, std::optional<py::dtype> dtype = std::nullopt);
+
+/// Element-wise mean over non-NaN elements along an axis (NumPy nanmean).
+/// Requires a floating-point input; integer/bool inputs raise std::invalid_argument
+/// (same restriction as torch_npu's nanmean).
+NPUArray Nanmean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::dtype> dtype = std::nullopt);
+py::object Nanmean(const NPUArray& a, std::optional<py::dtype> dtype = std::nullopt);
 } // namespace asnumpy

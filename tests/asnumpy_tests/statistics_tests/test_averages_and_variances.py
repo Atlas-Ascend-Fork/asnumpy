@@ -18,6 +18,7 @@
 
 包含：
 1. 均值函数: mean
+2. NaN 均值函数: nanmean
 
 优化维度：
 - axis / keepdims 参数
@@ -218,3 +219,99 @@ def test_mean_invalid_axis_negative():
     a = ap.ndarray.from_numpy(data)
     with pytest.raises(Exception):
         ap.mean(a, axis=-3)
+
+
+# ============================================================================
+# 2. NaN 均值函数测试 (Nanmean)
+# ============================================================================
+
+
+def _assert_nanmean_allclose(data, axis=None, keepdims=False, dtype=None, rtol=1e-5, atol=1e-5):
+    """辅助函数：比较 numpy 和 asnumpy 的 nanmean 结果"""
+    import asnumpy as ap
+
+    np_data = numpy.array(data)
+    ap_data = ap.ndarray.from_numpy(np_data)
+
+    np_result = numpy.nanmean(np_data, axis=axis, keepdims=keepdims, dtype=dtype)
+    ap_result = ap.nanmean(ap_data, axis=axis, keepdims=keepdims, dtype=dtype)
+
+    numpy.testing.assert_allclose(
+        _to_numpy(ap_result), np_result, rtol=rtol, atol=atol, equal_nan=True
+    )
+
+
+def test_nanmean_exports():
+    """nanmean 可从顶层与子模块导入,且列入 __all__"""
+    import asnumpy as ap
+    from asnumpy import nanmean as top_level_nanmean
+    from asnumpy.statistics import nanmean as statistics_nanmean
+
+    assert "nanmean" in ap.__all__
+    assert ap.nanmean is top_level_nanmean
+    assert top_level_nanmean is statistics_nanmean
+
+
+# ---------- 2.1 基础功能: 忽略 NaN ----------
+def test_nanmean_basic_global_float32():
+    """测试 nanmean: 全局均值忽略 NaN"""
+    _assert_nanmean_allclose([1.0, numpy.nan, 3.0, 4.0])
+
+
+def test_nanmean_basic_global_float64():
+    """测试 nanmean: float64 输入忽略 NaN"""
+    _assert_nanmean_allclose([1.0, numpy.nan, 3.0], dtype=numpy.float64)
+
+
+def test_nanmean_axis0():
+    """测试 nanmean: axis=0 忽略各切片中的 NaN"""
+    _assert_nanmean_allclose([[1.0, numpy.nan, 3.0], [4.0, 5.0, 6.0]], axis=0)
+
+
+def test_nanmean_axis1_keepdims():
+    """测试 nanmean: axis=1 且 keepdims=True"""
+    _assert_nanmean_allclose([[1.0, numpy.nan, 3.0], [4.0, 5.0, 6.0]], axis=1, keepdims=True)
+
+
+def test_nanmean_negative_axis():
+    """测试 nanmean: 负 axis"""
+    _assert_nanmean_allclose(
+        [[[1.0, 2.0], [3.0, numpy.nan]], [[5.0, 6.0], [7.0, 8.0]]], axis=-1
+    )
+
+
+def test_nanmean_dtype_param():
+    """测试 nanmean: dtype 参数提升输出精度"""
+    _assert_nanmean_allclose([[1.0, numpy.nan], [3.0, 4.0]], axis=0, dtype=numpy.float64)
+
+
+# ---------- 2.2 全 NaN 切片 ----------
+def test_nanmean_all_nan_slice():
+    """测试 nanmean: 全 NaN 切片结果应为 NaN,混合切片正常"""
+    _assert_nanmean_allclose([[1.0, numpy.nan], [numpy.nan, numpy.nan]], axis=0)
+
+
+def test_nanmean_all_nan_global():
+    """测试 nanmean: 全 NaN 输入全局归约结果应为 NaN"""
+    _assert_nanmean_allclose([numpy.nan, numpy.nan])
+
+
+# ---------- 2.3 非浮点输入 ----------
+def test_nanmean_integer_input_rejected():
+    """测试 nanmean: 整型输入应抛出 ValueError(与 torch_npu nanmean 限制一致)"""
+    import asnumpy as ap
+
+    data = numpy.array([1, 2, 3], dtype=numpy.int32)
+    a = ap.ndarray.from_numpy(data)
+    with pytest.raises(ValueError):
+        ap.nanmean(a)
+
+
+def test_nanmean_invalid_axis():
+    """测试 nanmean: 越界 axis 应抛出异常"""
+    import asnumpy as ap
+
+    data = numpy.array([[1.0, 2.0], [3.0, numpy.nan]], dtype=numpy.float32)
+    a = ap.ndarray.from_numpy(data)
+    with pytest.raises(Exception):
+        ap.nanmean(a, axis=2)

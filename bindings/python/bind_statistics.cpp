@@ -29,6 +29,11 @@ void bind_statistics(py::module_& statistics) {
                    py::arg("a"), py::arg("axis"), py::arg("keepdims"), py::arg("dtype") = py::none());
     statistics.def("mean", py::overload_cast<const NPUArray&, std::optional<py::dtype>>(&Mean), py::arg("a"),
                    py::arg("dtype") = py::none());
+
+    statistics.def("nanmean", py::overload_cast<const NPUArray&, int64_t, bool, std::optional<py::dtype>>(&Nanmean),
+                   py::arg("a"), py::arg("axis"), py::arg("keepdims"), py::arg("dtype") = py::none());
+    statistics.def("nanmean", py::overload_cast<const NPUArray&, std::optional<py::dtype>>(&Nanmean), py::arg("a"),
+                   py::arg("dtype") = py::none());
 }
 
 } // namespace asnumpy

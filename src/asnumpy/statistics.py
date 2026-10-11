@@ -16,6 +16,7 @@
 
 
 from ._core.statistics import mean as _mean
+from ._core.statistics import nanmean as _nanmean
 from ._types import ArrayLike, AxisLike, DTypeLike
 from .utils import _convert_dtype, ndarray
 
@@ -29,3 +30,14 @@ def mean(
     if axis is None:
         return _mean(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
     return ndarray(_mean(a, axis, keepdims, _convert_dtype(dtype)))
+
+
+def nanmean(
+    a: ArrayLike,
+    axis: AxisLike = None,
+    keepdims: bool = False,
+    dtype: DTypeLike = None,
+) -> ndarray | float:
+    if axis is None:
+        return _nanmean(a, _convert_dtype(dtype))  # type: ignore[no-any-return]
+    return ndarray(_nanmean(a, axis, keepdims, _convert_dtype(dtype)))
