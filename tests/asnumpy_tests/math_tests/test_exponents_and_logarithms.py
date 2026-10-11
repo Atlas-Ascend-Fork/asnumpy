@@ -200,13 +200,22 @@ def test_float_power_explicit_dtype(xp, dtype):
     return xp.float_power(a, b, dtype=numpy.float64)
 
 
-@pytest.mark.xfail(
-    reason="[FIXABLE] float_power 未显式指定 dtype 时返回 float32，NumPy 恒为 float64",
-    strict=True,
-)
 @testing.for_dtypes([numpy.float32])
 @testing.numpy_asnumpy_allclose(atol=1e-5, rtol=1e-5)
-def test_float_power_dtype_xfail(xp, dtype):
-    a = _create_array(xp, [2.0, 3.0], dtype)
-    b = _create_array(xp, [3.0, 2.0], dtype)
+def test_float_power_default_dtype(xp, dtype):
+    """未指定 dtype 时 float_power 恒为 float64，与 NumPy 一致"""
+    a = _create_array(xp, [2.0, 3.0, 2.0], dtype)
+    b = _create_array(xp, [3.0, 2.0, -1.0], dtype)
     return xp.float_power(a, b)
+
+
+def test_float_power_int64_overflow():
+    """整型输入按 float64 计算：大指数不应被 float32 溢出截断"""
+    import asnumpy as ap
+
+    base = numpy.array([2, 3, 10], dtype=numpy.int32)
+    exp = numpy.array([64, 100, 40], dtype=numpy.int32)
+    np_result = numpy.float_power(base, exp)
+    ap_result = ap.float_power(ap.ndarray.from_numpy(base), ap.ndarray.from_numpy(exp))
+    assert numpy.asarray(ap_result.to_numpy()).dtype == numpy.float64
+    numpy.testing.assert_allclose(ap_result.to_numpy(), np_result, rtol=1e-10)
