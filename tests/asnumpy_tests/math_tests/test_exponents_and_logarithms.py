@@ -219,3 +219,13 @@ def test_float_power_int64_overflow():
     ap_result = ap.float_power(ap.ndarray.from_numpy(base), ap.ndarray.from_numpy(exp))
     assert numpy.asarray(ap_result.to_numpy()).dtype == numpy.float64
     numpy.testing.assert_allclose(ap_result.to_numpy(), np_result, rtol=1e-10)
+
+
+def test_float_power_complex_rejected():
+    """complex 输入应明确报错（aclnn 转换会静默丢弃虚部，不能返回错误结果）"""
+    import asnumpy as ap
+
+    a = ap.ndarray.from_numpy(numpy.array([1 + 2j], dtype=numpy.complex64))
+    b = ap.ndarray.from_numpy(numpy.array([2], dtype=numpy.int32))
+    with pytest.raises(RuntimeError):
+        ap.float_power(a, b)

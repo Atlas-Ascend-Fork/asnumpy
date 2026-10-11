@@ -365,6 +365,15 @@ NPUArray FloatPower(const NPUArray& x1, const NPUArray& x2, std::optional<py::dt
     // NumPy float_power contract: the result is always float64 (ufunc loop 'dd->d').
     // Computing in float32 overflows for large exponents (e.g. 2**64 wraps to 0 on the NPU),
     // so both operands are promoted to double before aclnnPowTensorTensor.
+    //
+    // NumPy accepts complex operands (promoted to complex128), but aclnnPowTensorTensor has no
+    // complex64->double path that preserves the imaginary part: casting silently drops it
+    // ((1+2j)**2 -> 1.0 instead of -3+4j), so reject complex explicitly instead.
+    if (x1.aclDtype == ACL_COMPLEX64 || x1.aclDtype == ACL_COMPLEX128 || x2.aclDtype == ACL_COMPLEX64 ||
+        x2.aclDtype == ACL_COMPLEX128) {
+        throw std::runtime_error(
+            "[arithmetic_operations.cpp](FloatPower) complex input is not supported; use power instead");
+    }
     if (dtype.has_value() && !dtype->is(py::dtype::of<double>())) {
         throw std::runtime_error("[arithmetic_operations.cpp](FloatPower) dtype must be float64");
     }

@@ -189,6 +189,7 @@ NPUArray Power(const NPUArray& x1, const py::object& x2, std::optional<py::dtype
  * Matches NumPy's float_power: the result is always float64 (ufunc loop 'dd->d'),
  * even if inputs are integers or float32. Uses NPU operator aclnnPowTensorTensor.
  * Supports broadcasting of input shapes according to standard array broadcasting rules.
+ * Complex inputs are rejected: aclnn cannot preserve the imaginary part here.
  *
  * @param x1 Base array.
  * @param x2 Exponent array.
