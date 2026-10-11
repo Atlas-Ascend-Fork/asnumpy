@@ -6,13 +6,20 @@ on:
       task_name:
         required: true
         type: string
-      image_version:
+      image:
         required: true
         type: string
       arch:
         required: false
         type: string
         default: 'x64'
+      ref:
+        required: true
+        type: string
+      download_pr_artifacts:
+        required: false
+        type: string
+        default: 'true'
       package_name:
         required: false
         type: string
@@ -26,16 +33,24 @@ on:
 jobs:
   JOB_compile:
     name: Compile
+    strategy:
+      matrix:
+        python_version: ['3.12', '3.13', '3.14']
     steps:
       -
         name: Checkout
         identifier: process_checkout
         uses: checkout
         with:
-          ref: ${{ atomgit.event.pull_request.merge_commit_sha  }}
+          ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: true
+      - name: setup-python
+        uses: setup-python
+        with:
+          python-version: ${{ matrix.python_version }}
       -
         name: download
+        if: ${{ inputs.download_pr_artifacts == 'true' }}
         uses: obs-download
         with:
           endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
@@ -58,6 +73,9 @@ jobs:
             cd ${{ steps.process_checkout.outputs.path }}
             export task_name=${{ inputs.task_name }}
             export target_branch=${{ env.TARGET_BRANCH }}
+            export PYTHON_BIN=$(command -v python)
+            export PYTHON_VERSION=${{ matrix.python_version }}
+            "$PYTHON_BIN" -c 'import os, sys; sys.exit(0 if f"{sys.version_info.major}.{sys.version_info.minor}" == os.environ["PYTHON_VERSION"] else "Python version mismatch")' || exit 1
             BuildAccelerate bash compile.sh
           AC_SERVER_IP: ${{ vars.AC_SERVER_IP }}
       -
@@ -65,13 +83,16 @@ jobs:
         if: ${{ inputs.package_name != '' }}
         run: |
           cd ${{ steps.process_checkout.outputs.path }}/dist
-          for f in *.whl; do
-            [ -f "$f" ] || continue
-            [ "$f" = "${{ inputs.package_name }}" ] && continue
+          wheel_count=$(ls *.whl 2>/dev/null | wc -l)
+          if [ "${wheel_count}" != "1" ]; then
+            echo "Skip rename: ${wheel_count} wheels present, keeping canonical artifact names."
+            exit 0
+          fi
+          f=$(ls *.whl)
+          if [ "$f" != "${{ inputs.package_name }}" ]; then
             mv "$f" "${{ inputs.package_name }}"
             echo "Renamed: $f -> ${{ inputs.package_name }}"
-            break
-          done
+          fi
       - name: upload
         uses: obs-upload
         with:
@@ -80,11 +101,11 @@ jobs:
           access-key: ${{ secrets.AK }}
           secret-key: ${{ secrets.SK }}
           artifact-path: "${{ steps.process_checkout.outputs.path }}/dist/*"
-          object-prefix: ${{ env.obs_path }}/
+          object-prefix: ${{ env.obs_path }}/py${{ matrix.python_version }}/
     if: "${{ default() }}"
     runs-on:
       - self-hosted
       - arch=${{ inputs.arch }}
       - spec=xlarge
     container:
-      image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
+      image: ${{ inputs.image }}

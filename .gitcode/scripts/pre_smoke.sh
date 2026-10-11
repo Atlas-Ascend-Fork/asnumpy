@@ -16,7 +16,6 @@ cd ${WORKSPACE}
 
 export ASCEND_GLOBAL_LOG_LEVEL=2
 export ASCEND_SLOG_PRINT_TO_STDOUT=0
-source /usr/local/Ascend/cann/set_env.sh
 
 log() {
   local dt
@@ -28,52 +27,41 @@ log() {
 
 log "init test case, please wait ..."
 
+PYTHON_BIN="${PYTHON_BIN:?The workflow must select Python}"
+export PIP_INDEX_URL="${PIP_INDEX_URL:-https://repo.huaweicloud.com/repository/pypi/simple}"
 
-source /usr/local/Ascend/ascend-toolkit/latest/bin/setenv.bash;
-export PATH=/usr/bin:/usr/local/bin:$PATH
-export PATH=/usr/local/python/python310/bin:$PATH
+apt-get update
+apt-get install -y wget unzip
+"${PYTHON_BIN}" -m pip install --upgrade pip
+"${PYTHON_BIN}" -m pip install pytest pytest-xdist
 
-sudo apt update
-sudo apt install -y \
-    build-essential \
-    cmake \
-    dpkg-dev \
-    git \
-    libfmt-dev \
-    libspdlog-dev \
-    ninja-build
-
-ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
-export fmt_DIR="/usr/lib/${ARCH}/cmake/fmt"
-export spdlog_DIR="/usr/lib/${ARCH}/cmake/spdlog"
-
-# Keep build isolation enabled so pip honors [build-system].requires.
-python3.10 -m pip install --upgrade pip
-# python3.10 -m pip install -e ".[test]"
-wget https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/cann-asnumpy-linux-arm.whl
+package_name="${package_name:-cann-asnumpy-linux-arm.whl}"
+wget "https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/${package_name}"
 ls
-VERSION=$(unzip -p cann-asnumpy-linux-arm.whl *.dist-info/METADATA | grep "^Version:" | head -1 | cut -d' ' -f2 | tr -d '\r')
-echo "版本号: $VERSION"
-ORIGINAL_NAME="asnumpy-${VERSION}-cp310-cp310-linux_aarch64.whl"
-echo "原文件名: $ORIGINAL_NAME"
-mv cann-asnumpy-linux-arm.whl "$ORIGINAL_NAME"
-# python3.10 -m pip install cann-asnumpy-linux-arm.whl
-python3.10 -m pip install asnumpy*.whl
+
+# pip requires the canonical wheel filename; recover it from the wheel metadata
+# (version + full ABI/platform tag) so this works for any Python/arch combination.
+VERSION=$(unzip -p "${package_name}" '*.dist-info/METADATA' | grep -m1 "^Version:" | awk '{print $2}' | tr -d '\r')
+TAG=$(unzip -p "${package_name}" '*.dist-info/WHEEL' | grep -m1 "^Tag:" | awk '{print $2}' | tr -d '\r')
+echo "版本号: ${VERSION}  标签: ${TAG}"
+wheel_file="asnumpy-${VERSION}-${TAG}.whl"
+mv "${package_name}" "${wheel_file}"
+"${PYTHON_BIN}" -m pip install "${wheel_file}"
 
 set +e
-python3.10 -m pytest tests/ -n 8 -v 2>&1 | tee -a ./run_test.log
+"${PYTHON_BIN}" -m pytest tests/ -n 8 -v 2>&1 | tee -a ./run_test.log
 pytest_exit_code=${PIPESTATUS[0]}
 set -e
 
 echo "pip3 install obs"
-python3.10 -m pip install esdk-obs-python \
+"${PYTHON_BIN}" -m pip install esdk-obs-python \
     --trusted-host repo.huaweicloud.com \
     -i https://repo.huaweicloud.com/repository/pypi/simple
 
 # ==============================
 # 打包log
 # ==============================
-mkdir -p /root/ascend
+mkdir -p /root/ascend/log
 slog_name="slog.tar.gz"
 tar -zcf "${slog_name}" -C /root/ascend log
 

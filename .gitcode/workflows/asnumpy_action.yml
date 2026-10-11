@@ -24,8 +24,8 @@ env:
   TARGET_BRANCH: ${{atomgit.base_ref}}
   SOURCE_BRANCH: ${{atomgit.head_ref}}
   obs_path: "${{ env.org_name }}/${{ env.repo_name }}/ci/package/${{ env.MERGE_ID }}"
-  obs_smoke_path_A2: "${{ env.obs_path }}/presmoke/2"
   online: ${{ vars.APPLY_LABEL }}
+  compile_image: swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-ubuntu22.04-py3.11-devel
 
 stages:
   stage1:
@@ -65,16 +65,18 @@ stages:
         uses: .gitcode/workflows/compile_action.yml
         with:
           task_name: 'Compile_Ascend_X86'
-          image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_X86 }}
+          image: ${{ env.compile_image }}
           arch: 'x64'
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
           package_name: 'cann-asnumpy-linux-x86_64.whl'
       JOB_arm_compile:
         name: Compile_Ascend_ARM
         uses: .gitcode/workflows/compile_action.yml
         with:
           task_name: 'Compile_Ascend_ARM'
-          image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_ARM }}
+          image: ${{ env.compile_image }}
           arch: 'arm64'
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
           package_name: 'cann-asnumpy-linux-arm.whl'
       JOB_staticcheck_md_check:
         name: CodeCheck_staticcheck_md_check
@@ -88,56 +90,12 @@ stages:
   stage3:
     name: PreSmoke
     jobs:
-      A2_smoke:
-        name: PreSmoke_A2
-        timeout-minutes: 30
-        steps:
-          -
-            name: Checkout
-            identifier: process_checkout
-            uses: checkout
-            with:
-              allow-unsafe-pr-checkout: true
-              ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
-          -
-            name: download
-            uses: obs-download
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              access-key: ${{ secrets.AK }}
-              secret-key: ${{ secrets.SK }}
-              key: |
-                ${{ env.obs_path }}/pr_filelist.txt
-                ${{ env.obs_path }}/pr_filelist_mod.txt
-                ${{ env.obs_path }}/update_file_detail.txt
-                ${{ env.obs_path }}/pre_smoke.sh
-              path: ${{ steps.process_checkout.outputs.path }}
-          -
-            name: smoke executor
-            run: |
-              export arm_run_url=${{jobs.JOB_arm_compile_ubuntu24.outputs.arm_run_url}}
-              export obs_smoke_path=${{env.obs_smoke_path_A2}}
-              export obs_path=${{ env.obs_path }}
-              export repo_name=${{env.repo_name}}
-              export pr_id=${{ env.MERGE_ID }}
-              export AK=${{secrets.AK}}
-              export SK=${{secrets.SK}}
-              export WORKSPACE=${{ steps.process_checkout.outputs.path }}
-              bash ${{ steps.process_checkout.outputs.path }}/pre_smoke.sh
-          - name: upload
-            uses: obs-upload
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              access-key: ${{ secrets.AK }}
-              secret-key: ${{ secrets.SK }}
-              artifact-path: "${{ steps.process_checkout.outputs.path }}/slog*.tar.gz"
-              object-prefix: ${obs_smoke_path}/plog/
-        if: env.TARGET_BRANCH == 'master'
-        runs-on: ['self-hosted','npu=2','smoke=204']
-        container:
-          image: swr.cn-south-1.myhuaweicloud.com/pre_smoke/ubuntu24.04_arm:mindspore_A2_conda_v1.1010
+      X86_smoke:
+        name: PreSmoke_X86
+        uses: .gitcode/workflows/smoke_action.yml
+        with:
+          arch: 'x64'
+          package_name: 'cann-asnumpy-linux-x86_64.whl'
     pre:
     - type: auto
     fail-fast: true
