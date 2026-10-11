@@ -15,8 +15,12 @@
  *****************************************************************************/
 
 #include <asnumpy/statistics/averages_and_variances.hpp>
+#include <asnumpy/logic/logic.hpp>
+#include <asnumpy/math/arithmetic_operations.hpp>
+#include <asnumpy/math/sums_products_differences.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
+#include <asnumpy/utils/dtype_promotion.hpp>
 #include <asnumpy/utils/npu_array.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 
@@ -126,6 +130,44 @@ py::object Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
     LOG_INFO("aclnnMean completed");
+    return result.ToNumpy()[py::int_(0)];
+}
+
+NPUArray Nanmean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::dtype> dtype) {
+    LOG_DEBUG("aclnnNanmean start: input_shape={}, tensorSize={}, aclDtype={}, axis={}, keepdims={}",
+              detail::FormatShape(a.shape), a.tensorSize, AclDtypeName(a.aclDtype), axis, keepdims);
+    if (!IsFloatingAclDtype(a.aclDtype)) {
+        throw std::invalid_argument(fmt::format(
+            "[statistics.cpp]({}) unsupported dtype: nanmean requires floating input, got {}", __func__,
+            AclDtypeName(a.aclDtype)));
+    }
+    py::dtype outDtype = dtype.has_value() ? dtype.value() : a.dtype;
+    // torch_npu 同款组合实现：nansum 除以非 NaN 元素个数。
+    // equal(a, a) 在 NaN 处为 false（IEEE 语义），掩码求和即非 NaN 计数；
+    // 全 NaN 切片时 0/0 得 NaN，与 NumPy 一致。
+    NPUArray sum = Nansum(a, axis, keepdims, outDtype);
+    NPUArray nonnan = CastToDtype(equal(a, a), ACL_FLOAT);
+    NPUArray count = Sum(nonnan, axis, keepdims, py::dtype::of<float>());
+    NPUArray result = Divide(sum, count, outDtype);
+    LOG_INFO("aclnnNanmean completed");
+    return result;
+}
+
+py::object Nanmean(const NPUArray& a, std::optional<py::dtype> dtype) {
+    LOG_DEBUG("aclnnNanmean start: input_shape={}, tensorSize={}, aclDtype={}", detail::FormatShape(a.shape),
+              a.tensorSize, AclDtypeName(a.aclDtype));
+    if (!IsFloatingAclDtype(a.aclDtype)) {
+        throw std::invalid_argument(fmt::format(
+            "[statistics.cpp]({}) unsupported dtype: nanmean requires floating input, got {}", __func__,
+            AclDtypeName(a.aclDtype)));
+    }
+    py::dtype outDtype = dtype.has_value() ? dtype.value() : a.dtype;
+    auto temp = FlattenArray(a);
+    NPUArray sum = Nansum(temp, 0, true, outDtype);
+    NPUArray nonnan = CastToDtype(equal(temp, temp), ACL_FLOAT);
+    NPUArray count = Sum(nonnan, 0, true, py::dtype::of<float>());
+    NPUArray result = Divide(sum, count, outDtype);
+    LOG_INFO("aclnnNanmean completed");
     return result.ToNumpy()[py::int_(0)];
 }
 } // namespace asnumpy
