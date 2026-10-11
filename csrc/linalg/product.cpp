@@ -110,6 +110,7 @@ NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
     ACLNN_CHECK(error, "aclnnEinsum");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyTensorList(input);
     LOG_INFO("aclnnEinsum completed");
     return result;
 }
