@@ -62,6 +62,10 @@ from ._core.logic import (
 from ._core.logic import (
     not_equal as _not_equal,
 )
+
+from ._core.logic import (
+    where as _where,
+)
 from ._types import ArrayLike, AxisLike, DTypeLike
 from ._ufunc import create_ufunc as _create_ufunc
 from .utils import _convert_dtype, ndarray
@@ -157,3 +161,8 @@ equal = _create_ufunc(
 
 def not_equal(x1: ArrayLike, x2: ArrayLike, dtype: DTypeLike = None) -> ndarray:
     return ndarray(_not_equal(x1, x2, _convert_dtype(dtype)))
+
+
+def where(condition: ArrayLike, x1: ArrayLike, x2: ArrayLike) -> ndarray:
+    """Return elements chosen from x1 or x2 depending on condition (NumPy where)."""
+    return ndarray(_where(condition, x1, x2))

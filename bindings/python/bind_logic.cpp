@@ -86,4 +86,6 @@ void bind_logic(py::module_& logic) {
 
     logic.def("not_equal", py::overload_cast<const NPUArray&, const py::object&, std::optional<py::dtype>>(&not_equal),
               py::arg("x1"), py::arg("scalar"), py::arg("dtype") = py::none());
+
+    logic.def("where", &where, py::arg("condition"), py::arg("x1"), py::arg("x2"));
 }

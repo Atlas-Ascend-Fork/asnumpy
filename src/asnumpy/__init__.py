@@ -78,6 +78,7 @@ if TYPE_CHECKING:
         logical_or,
         logical_xor,
         not_equal,
+        where,
     )
     from .math import (
         absolute,
@@ -254,6 +255,7 @@ _LAZY_MAPPING = {
     "logical_or": ".logic",
     "logical_xor": ".logic",
     "not_equal": ".logic",
+    "where": ".logic",
     # .math
     "absolute": ".math",
     "add": ".math",

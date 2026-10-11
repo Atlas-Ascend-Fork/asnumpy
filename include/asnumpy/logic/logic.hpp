@@ -243,4 +243,16 @@ NPUArray not_equal(const NPUArray& x1, const NPUArray& x2, std::optional<py::dty
  */
 NPUArray not_equal(const NPUArray& x1, const py::object& scalar, std::optional<py::dtype> dtype = std::nullopt);
 
+/**
+ * @brief Selects elements from x1 or x2 depending on condition (NumPy where).
+ *
+ * @param condition Boolean array; must be ACL_BOOL.
+ * @param x1 Values taken where condition is true; promoted to the common dtype with x2.
+ * @param x2 Values taken where condition is false; promoted to the common dtype with x1.
+ * @return NPUArray Broadcasted selection result.
+ * @throws std::invalid_argument If condition is not ACL_BOOL or shapes are not broadcastable.
+ * @throws std::runtime_error If ACL operation fails.
+ */
+NPUArray where(const NPUArray& condition, const NPUArray& x1, const NPUArray& x2);
+
 } // namespace asnumpy

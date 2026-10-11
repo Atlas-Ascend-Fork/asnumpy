@@ -15,8 +15,10 @@
  *****************************************************************************/
 
 #include <asnumpy/logic/logic.hpp>
+#include <asnumpy/dtypes/promote.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
+#include <asnumpy/utils/dtype_promotion.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -43,6 +45,10 @@
 #include <aclnnop/aclnn_lt_tensor.h>
 #include <aclnnop/aclnn_ne_scalar.h>
 #include <aclnnop/aclnn_ne_tensor.h>
+#include <aclnnop/aclnn_where.h>
+
+#include <algorithm>
+#include <vector>
 
 namespace asnumpy {
 
@@ -566,6 +572,57 @@ NPUArray not_equal(const NPUArray& x1, const py::object& scalar, std::optional<p
     aclDestroyScalar(acl_scalar);
     LOG_INFO("aclnnNeScalar completed");
     return out;
+}
+
+namespace {
+
+// GetBroadcastShape 只支持两个 NPUArray,where 需要三元广播,这里补一个 shape 级别的二元广播
+std::vector<int64_t> BroadcastTwoShapes(const std::vector<int64_t>& lhs, const std::vector<int64_t>& rhs) {
+    const size_t n = std::max(lhs.size(), rhs.size());
+    std::vector<int64_t> out(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+        const int64_t l = (i >= n - lhs.size()) ? lhs[i - (n - lhs.size())] : 1;
+        const int64_t r = (i >= n - rhs.size()) ? rhs[i - (n - rhs.size())] : 1;
+        if (l != r && l != 1 && r != 1) {
+            throw std::invalid_argument(
+                fmt::format("[logic.cpp]({}) shapes are not broadcastable", __func__));
+        }
+        out[i] = std::max(l, r);
+    }
+    return out;
+}
+
+} // anonymous namespace
+
+NPUArray where(const NPUArray& condition, const NPUArray& x1, const NPUArray& x2) {
+    LOG_DEBUG("aclnnWhere start: cond_shape={}, x1_shape={}, x2_shape={}, condDtype={}, x1Dtype={}, x2Dtype={}",
+              detail::FormatShape(condition.shape), detail::FormatShape(x1.shape), detail::FormatShape(x2.shape),
+              AclDtypeName(condition.aclDtype), AclDtypeName(x1.aclDtype), AclDtypeName(x2.aclDtype));
+    if (condition.aclDtype != ACL_BOOL) {
+        throw std::invalid_argument(fmt::format(
+            "[logic.cpp]({}) condition must be ACL_BOOL, got {}", __func__, AclDtypeName(condition.aclDtype)));
+    }
+    aclDataType common = ResultType(x1.aclDtype, x2.aclDtype);
+    NPUArray in_x1 = EnsureAclDtype(x1, common);
+    NPUArray in_x2 = EnsureAclDtype(x2, common);
+    std::vector<int64_t> out_shape = BroadcastTwoShapes(GetBroadcastShape(condition, in_x1), in_x2.shape);
+
+    auto result = NPUArray(out_shape, common);
+    uint64_t workspaceSize = 0;
+    aclOpExecutor* executor;
+    auto error = aclnnWhereGetWorkspaceSize(condition.tensorPtr, in_x1.tensorPtr, in_x2.tensorPtr, result.tensorPtr,
+                                            &workspaceSize, &executor);
+    ACLNN_CHECK(error, "aclnnWhereGetWorkspaceSize");
+
+    AclWorkspace workspace(workspaceSize);
+
+    error = aclnnWhere(workspace.get(), workspaceSize, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnWhere");
+
+    error = aclrtSynchronizeDevice();
+    ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    LOG_INFO("aclnnWhere completed");
+    return result;
 }
 
 } // namespace asnumpy

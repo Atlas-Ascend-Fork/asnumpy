@@ -899,3 +899,60 @@ def test_less_empty(xp, dtype):
     a = _create_array(xp, [], dtype)
     b = _create_array(xp, [], dtype)
     return xp.less(a, b)
+
+
+# ==========================================================================
+# where: 条件选择
+# ==========================================================================
+
+
+@testing.numpy_asnumpy_array_equal()
+def test_where_basic(xp):
+    """where: 按布尔条件选择元素"""
+    cond = _create_array(xp, [True, False, True, False], numpy.bool_)
+    x1 = _create_array(xp, [1.0, 2.0, 3.0, 4.0], numpy.float32)
+    x2 = _create_array(xp, [10.0, 20.0, 30.0, 40.0], numpy.float32)
+    return xp.where(cond, x1, x2)
+
+
+@testing.numpy_asnumpy_array_equal()
+def test_where_dtype_promotion(xp):
+    """where: x1/x2 混合精度时按 NumPy 规则提升"""
+    cond = _create_array(xp, [True, False], numpy.bool_)
+    x1 = _create_array(xp, [1.0, 2.0], numpy.float32)
+    x2 = _create_array(xp, [10, 20], numpy.int32)
+    return xp.where(cond, x1, x2)
+
+
+@testing.numpy_asnumpy_array_equal()
+def test_where_broadcast(xp):
+    """where: 条件与数据广播"""
+    cond = _create_array(xp, [True, False], numpy.bool_)
+    x1 = _create_array(xp, [[1.0, 2.0], [3.0, 4.0]], numpy.float32)
+    x2 = _create_array(xp, [10.0, 20.0], numpy.float32)
+    return xp.where(cond, x1, x2)
+
+
+def test_where_exports():
+    """where 可从顶层与子模块导入,且列入 __all__"""
+    import asnumpy as ap
+    from asnumpy import where as top_level_where
+    from asnumpy.logic import where as logic_where
+
+    assert "where" in ap.__all__
+    assert ap.where is top_level_where
+    assert top_level_where is logic_where
+
+
+def test_where_non_bool_condition_rejected():
+    """where: 非 bool 条件应抛出 ValueError"""
+    import asnumpy as ap
+
+    cond = _create_array(ap, [1, 0], numpy.int32)
+    x1 = _create_array(ap, [1.0, 2.0], numpy.float32)
+    x2 = _create_array(ap, [10.0, 20.0], numpy.float32)
+    try:
+        ap.where(cond, x1, x2)
+    except (ValueError, TypeError, RuntimeError):
+        return
+    raise AssertionError("expected non-bool condition to raise")
