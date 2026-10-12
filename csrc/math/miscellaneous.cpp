@@ -15,6 +15,9 @@
  *****************************************************************************/
 
 #include <asnumpy/math/miscellaneous.hpp>
+#include <asnumpy/array/basic.hpp>
+#include <asnumpy/logic/logic.hpp>
+#include <asnumpy/math/arithmetic_operations.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
 #include <asnumpy/utils/dtype_promotion.hpp>
@@ -329,7 +332,47 @@ NPUArray Square(const NPUArray& x) {
 
 DEFINE_UNARY_OP(Absolute, aclnnAbsGetWorkspaceSize, aclnnAbs)
 DEFINE_UNARY_OP(Sign, aclnnSignGetWorkspaceSize, aclnnSign)
-DEFINE_BINARY_OP(Heaviside, aclnnHeavisideGetWorkspaceSize, aclnnHeaviside)
+
+NPUArray Heaviside(const NPUArray& x1, const NPUArray& x2) {
+    LOG_DEBUG("aclnnHeaviside start: x1_shape={}, x2_shape={}, x1_dtype={}, x2_dtype={}", detail::FormatShape(x1.shape),
+              detail::FormatShape(x2.shape), AclDtypeName(x1.aclDtype), AclDtypeName(x2.aclDtype));
+    // Native path: aclnnHeaviside only supports FLOAT/FLOAT16/BFLOAT16 on CANN 9.0.0, so keep it
+    // for float32/float16 inputs (NumPy keeps those dtypes too), promoting a float16 second
+    // operand of a float32 call up to float32.
+    const bool both_float32 = x1.aclDtype == ACL_FLOAT && (x2.aclDtype == ACL_FLOAT || x2.aclDtype == ACL_FLOAT16);
+    const bool both_float16 = x1.aclDtype == ACL_FLOAT16 && x2.aclDtype == ACL_FLOAT16;
+    if (both_float32 || both_float16) {
+        NPUArray in2 = EnsureAclDtype(x2, x1.aclDtype);
+        auto shape = GetBroadcastShape(x1, in2);
+        auto result = NPUArray(shape, x1.dtype);
+        uint64_t workspaceSize = 0;
+        aclOpExecutor* executor;
+        auto error =
+            aclnnHeavisideGetWorkspaceSize(x1.tensorPtr, in2.tensorPtr, result.tensorPtr, &workspaceSize, &executor);
+        ACLNN_CHECK(error, "aclnnHeavisideGetWorkspaceSize");
+        AclWorkspace workspace(workspaceSize);
+        error = aclnnHeaviside(workspace.get(), workspaceSize, executor, nullptr);
+        ACLNN_CHECK(error, "aclnnHeaviside");
+        error = aclrtSynchronizeDevice();
+        ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+        LOG_INFO("aclnnHeaviside completed");
+        return result;
+    }
+
+    // Everything else (double/integer/bool inputs, NumPy promotes them all to float64) cannot go
+    // through aclnnHeaviside (issue #122). Compute the step as (x > 0) + (x == 0) * values in
+    // float64 — exact, and the trailing +x*0 term propagates NaN inputs like NumPy. All involved
+    // comparison/arithmetic ops have float64 kernels.
+    NPUArray a = CastToDtype(x1, ACL_DOUBLE);
+    NPUArray v = CastToDtype(x2, ACL_DOUBLE);
+    NPUArray zeros = Full(a.shape, py::cast(0.0), py::dtype::of<double>());
+    NPUArray ones = Full(a.shape, py::cast(1.0), py::dtype::of<double>());
+    NPUArray gt = CastToDtype(greater(a, zeros), ACL_DOUBLE);
+    NPUArray eq = CastToDtype(equal(a, zeros), ACL_DOUBLE);
+    NPUArray result = Add(Add(Multiply(gt, ones), Multiply(eq, v)), Multiply(a, zeros));
+    LOG_INFO("Heaviside float64 fallback completed");
+    return result;
+}
 
 NPUArray Fabs(const NPUArray& x) {
     // NumPy fabs: floating keeps dtype; integers/bool promote to float (via PromoteUnaryFloating).

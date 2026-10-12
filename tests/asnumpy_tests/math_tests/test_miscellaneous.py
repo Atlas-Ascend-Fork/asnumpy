@@ -115,6 +115,37 @@ def test_heaviside_basic(xp, dtype):
     return xp.heaviside(x1, x2)
 
 
+@testing.numpy_asnumpy_allclose()
+def test_heaviside_float64(xp):
+    """测试 heaviside: float64 输入应正常计算（issue #122），不再抛 CannError"""
+    x1 = _create_array(xp, [-2.0, -0.5, 0.0, 0.5, 2.0], numpy.float64)
+    x2 = _create_array(xp, [0.25, 0.25, 0.25, 0.25, 0.25], numpy.float64)
+    return xp.heaviside(x1, x2)
+
+
+def test_heaviside_int32_promotes_float64():
+    """测试 heaviside: 整型输入按 NumPy 语义提升为 float64（issue #122）"""
+    import asnumpy as ap
+
+    x1 = ap.ndarray.from_numpy(numpy.array([-2, 0, 3], dtype=numpy.int32))
+    x2 = ap.ndarray.from_numpy(numpy.array([0.5, 0.5, 0.5], dtype=numpy.float64))
+    result = ap.heaviside(x1, x2)
+    arr = numpy.asarray(result.to_numpy())
+    assert arr.dtype == numpy.float64
+    numpy.testing.assert_allclose(arr, numpy.heaviside(numpy.array([-2, 0, 3], dtype=numpy.int32), 0.5))
+
+
+def test_heaviside_nan_propagates():
+    """测试 heaviside: NaN 输入按 NumPy 语义传播"""
+    import asnumpy as ap
+
+    x1 = ap.ndarray.from_numpy(numpy.array([numpy.nan, 0.0, 1.0], dtype=numpy.float64))
+    x2 = ap.ndarray.from_numpy(numpy.array([0.5, 0.5, 0.5], dtype=numpy.float64))
+    arr = numpy.asarray(ap.heaviside(x1, x2).to_numpy())
+    assert numpy.isnan(arr[0])
+    numpy.testing.assert_allclose(arr[1:], numpy.heaviside(numpy.array([0.0, 1.0]), 0.5))
+
+
 # ========== 3. 最大/最小比较 (Maximum, Minimum) ==========
 
 
