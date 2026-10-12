@@ -55,6 +55,13 @@ def test_expm1_basic(xp, dtype):
     return xp.expm1(a)
 
 
+@testing.numpy_asnumpy_allclose(atol=1e-12, rtol=1e-12)
+def test_expm1_float64(xp):
+    """测试 expm1: float64 输入应正常计算（issue #121），不再抛 CannError"""
+    a = _create_array(xp, [-1.0, -1e-8, 0.0, 1e-8, 1.0, 5.0], numpy.float64)
+    return xp.expm1(a)
+
+
 # ========== 2. 对数运算 (Log, Log10, Log1p) ==========
 
 
