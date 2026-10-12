@@ -6,6 +6,7 @@
 
 ### NumPy for Ascend NPU
 
+  
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![CANN](https://img.shields.io/badge/CANN-8.2RC1+-orange.svg)]()
