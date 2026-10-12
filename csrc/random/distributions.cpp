@@ -134,6 +134,9 @@ NPUArray Generator_Pareto(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceSubs");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other);
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(exponent);
     LOG_INFO("aclnnInplaceSubs completed");
     return result;
 }
@@ -225,6 +228,10 @@ NPUArray Generator_Rayleigh(float scale, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other);
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(mulnum);
+    aclDestroyScalar(muls);
     LOG_INFO("aclnnInplaceMuls completed");
     return result;
 }
@@ -357,6 +364,9 @@ NPUArray Generator_Standard_cauchy(const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnInplaceTan");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other);
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(pi);
     LOG_INFO("aclnnInplaceTan completed");
     return result;
 }
@@ -440,6 +450,10 @@ NPUArray Generator_Weibull(float a, const std::vector<int64_t>& size) {
     ACLNN_CHECK(error, "aclnnPowTensorScalar");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyScalar(other1);
+    aclDestroyScalar(alpha);
+    aclDestroyScalar(other2);
+    aclDestroyScalar(exponent);
     LOG_INFO("aclnnPowTensorScalar completed");
     return result;
 }
@@ -990,7 +1004,7 @@ NPUArray Gumbel(double loc, double scale, const std::vector<int64_t>& size) {
     ret = aclrtSynchronizeStream(stream);
     ACL_RT_CHECK(ret, "aclrtSynchronizeStream");
 
-        // 8. cleanup resources
+    // 8. cleanup resources
     aclDestroyScalar(alpha_scalar);
     aclrtDestroyStream(stream);
 
@@ -1366,7 +1380,7 @@ NPUArray Logistic(double loc, double scale, const std::vector<int64_t>& size) {
     ACL_RT_CHECK(ret, "aclrtSynchronizeStream");
     aclDestroyScalar(alpha_add);
 
-        // 8. cleanup resources
+    // 8. cleanup resources
     aclrtDestroyStream(stream);
 
     LOG_INFO("aclnnAdd completed");
