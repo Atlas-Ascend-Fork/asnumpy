@@ -15,6 +15,8 @@
  *****************************************************************************/
 
 #include <asnumpy/math/exponents_and_logarithms.hpp>
+#include <asnumpy/array/basic.hpp>
+#include <asnumpy/math/arithmetic_operations.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/dtype_promotion.hpp>
 #include <asnumpy/utils/npu_array.hpp>
@@ -72,6 +74,15 @@ NPUArray Exp(const NPUArray& x) {
 }
 
 NPUArray Expm1(const NPUArray& x) {
+    // aclnnExpm1 has no DT_DOUBLE kernel on CANN 9.0.0 (AclNN_Parameter_Error EZ1001, see
+    // issue #121), while aclnnExp does. For double inputs compute expm1(x) = exp(x) - 1 in
+    // full double precision: bit-accurate for |x| ≳ 1e-8 and within ~1e-16 absolute error
+    // near zero, versus raising CannError for every float64 call.
+    if (x.aclDtype == ACL_DOUBLE) {
+        NPUArray e = Exp(x);
+        NPUArray ones = Full(e.shape, py::cast(1.0), py::dtype::of<double>());
+        return Subtract(e, ones);
+    }
     return UnaryFloatingPromoteOp(
         x, /*supports_float64=*/true,
         [](aclTensor* in, aclTensor* out, uint64_t* workspaceSize, aclOpExecutor** executor) {
