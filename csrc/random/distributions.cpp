@@ -1004,7 +1004,7 @@ NPUArray Gumbel(double loc, double scale, const std::vector<int64_t>& size) {
     ret = aclrtSynchronizeStream(stream);
     ACL_RT_CHECK(ret, "aclrtSynchronizeStream");
 
-        // 8. cleanup resources
+    // 8. cleanup resources
     aclDestroyScalar(alpha_scalar);
     aclrtDestroyStream(stream);
 
@@ -1380,7 +1380,7 @@ NPUArray Logistic(double loc, double scale, const std::vector<int64_t>& size) {
     ACL_RT_CHECK(ret, "aclrtSynchronizeStream");
     aclDestroyScalar(alpha_add);
 
-        // 8. cleanup resources
+    // 8. cleanup resources
     aclrtDestroyStream(stream);
 
     LOG_INFO("aclnnAdd completed");
