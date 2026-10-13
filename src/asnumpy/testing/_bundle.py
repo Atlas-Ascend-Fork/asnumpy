@@ -84,7 +84,7 @@ def _generate_case(test_class, params):
 
     # Copy all methods from the test class
     for attr_name in dir(test_class):
-        if attr_name.startswith("_"):
+        if not attr_name.startswith("test"):
             continue
         attr = getattr(test_class, attr_name)
         if not callable(attr):
