@@ -75,7 +75,7 @@ def test_load_npy_returns_npu_array(dtype):
     buffer.seek(0)
 
     loaded = ap.load(buffer)
-    assert type(loaded).__name__ == "ndarray"
+    assert isinstance(loaded, ap.ndarray)
     numpy.testing.assert_array_equal(loaded.to_numpy(), data)
 
 
@@ -138,8 +138,8 @@ def test_load_npz_roundtrip_returns_lazy_npu_arrays(dtype):
         assert loaded.files == ["left", "right"]
         left_arr = loaded["left"]
         right_arr = loaded["right"]
-        assert type(left_arr).__name__ == "ndarray"
-        assert type(right_arr).__name__ == "ndarray"
+        assert isinstance(left_arr, ap.ndarray)
+        assert isinstance(right_arr, ap.ndarray)
         numpy.testing.assert_allclose(left_arr.to_numpy(), left)
         numpy.testing.assert_allclose(right_arr.to_numpy(), right)
 
