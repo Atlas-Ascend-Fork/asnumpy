@@ -33,6 +33,8 @@ import re
 import warnings
 from contextlib import contextmanager
 
+import numpy as np
+
 
 def assert_raises(exception_class, func=None, *args, **kwargs):
     """Assert that a function raises the specified exception type.
@@ -319,11 +321,7 @@ def assert_equal(actual, desired, err_msg=""):
         assert_equal(a.shape, (3, 4))
         assert_equal(type(arr), numpy.ndarray)
     """
-    if actual != desired:
-        msg = f"\nActual: {actual}\nDesired: {desired}"
-        if err_msg:
-            msg = f"{err_msg}\n{msg}"
-        raise AssertionError(msg)
+    np.testing.assert_equal(actual, desired, err_msg=err_msg)
 
 
 def assert_string_equal(actual, desired):
