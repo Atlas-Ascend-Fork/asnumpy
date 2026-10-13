@@ -278,6 +278,10 @@ def for_orders(orders, name="order"):
                     logger.debug(f"{name} is {order}")
                     raise
 
+        signature = inspect.signature(impl)
+        test_func.__signature__ = signature.replace(
+            parameters=[p for p in signature.parameters.values() if p.name != name]
+        )
         return test_func
 
     return decorator
