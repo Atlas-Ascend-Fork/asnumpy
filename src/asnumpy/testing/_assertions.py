@@ -240,7 +240,7 @@ class _AssertWarnsContext:
         )
 
 
-def assert_no_warnings(func, *args, **kwargs):
+def assert_no_warnings(func=None, *args, **kwargs):
     """Assert that a function does not emit any warnings.
 
     Args:
