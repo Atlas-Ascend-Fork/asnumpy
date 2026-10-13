@@ -58,11 +58,6 @@ def assert_raises(exception_class, func=None, *args, **kwargs):
 
         # As a function call
         assert_raises(ValueError, numpy.zeros, -1)
-
-        # As a decorator
-        @assert_raises(TypeError)
-        def test_invalid_type():
-            numpy.array('invalid')
     """
     if func is None:
         return _AssertRaisesContext(exception_class)
