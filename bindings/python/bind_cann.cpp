@@ -16,14 +16,30 @@
 
 #include <asnumpy/cann/driver.hpp>
 #include <acl/acl.h>
-#include <algorithm>
 #include <pybind11/pybind11.h>
+#include <stdexcept>
+#include <string>
+
+namespace {
+void CheckDeviceResult(aclError result, const char* operation) {
+    if (result != ACL_SUCCESS) {
+        throw std::runtime_error(std::string("CANN ") + operation + " failed with error " + std::to_string(result));
+    }
+}
+} // namespace
 
 void bind_cann(pybind11::module_& cann) {
     cann.doc() = "cann module of asnumpy";
-    cann.def("set_device", &aclrtSetDevice, pybind11::arg("device_id"));
-    cann.def("reset_device", &aclrtResetDevice, pybind11::arg("device_id"));
-    cann.def("reset_device_force", &aclrtResetDeviceForce, pybind11::arg("device_id"));
+    cann.def(
+        "set_device", [](int device_id) { CheckDeviceResult(aclrtSetDevice(device_id), "set_device"); },
+        pybind11::arg("device_id"));
+    cann.def(
+        "reset_device", [](int device_id) { CheckDeviceResult(aclrtResetDevice(device_id), "reset_device"); },
+        pybind11::arg("device_id"));
+    cann.def(
+        "reset_device_force",
+        [](int device_id) { CheckDeviceResult(aclrtResetDeviceForce(device_id), "reset_device_force"); },
+        pybind11::arg("device_id"));
     cann.def("init", &asnumpy::cann::init);
     cann.def("finalize", &asnumpy::cann::finalize);
 }
