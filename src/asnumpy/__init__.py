@@ -27,7 +27,7 @@ from ._version import __version__
 from .cann import finalize, init, reset_device, reset_device_force, set_device
 
 if TYPE_CHECKING:
-    from . import linalg, random
+    from . import fft, linalg, random
     from ._dtype import (
         can_cast,
         dtype,
@@ -59,6 +59,7 @@ if TYPE_CHECKING:
         zeros,
         zeros_like,
     )
+    from .fft import fft2, ifft, ifft2, irfft, rfft
     from .io import load, save, savez, savez_compressed
     from .linalg.direct import _direct_all_, dot, einsum, inner, matmul, outer, vdot
     from .logic import (
@@ -228,6 +229,13 @@ _LAZY_MAPPING = {
     "ones_like": ".array",
     "zeros": ".array",
     "zeros_like": ".array",
+    # .fft
+    "fft": ".fft",
+    "fft2": ".fft",
+    "ifft": ".fft",
+    "ifft2": ".fft",
+    "irfft": ".fft",
+    "rfft": ".fft",
     # .linalg
     "linalg": ".linalg",
     # .linalg.direct

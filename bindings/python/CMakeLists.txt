@@ -49,6 +49,7 @@ target_link_libraries(_core
     cann
     dtypes
     utils
+    fft
     linalg
     random
     math
@@ -57,6 +58,14 @@ target_link_libraries(_core
     statistics
     nn
 )
+
+# libcann_ops_fft.so lives in its own install prefix, so the installed _core.so must carry that
+# directory in its run path; otherwise importing asnumpy.fft fails with a loader error. The
+# directory comes from the user-supplied dependency path, never from a hardcoded constant.
+if(ASNUMPY_ENABLE_FFT)
+    get_filename_component(_asnumpy_ops_fft_libdir "${ASNUMPY_OPS_FFT_LIBRARY}" DIRECTORY)
+    set_property(TARGET _core APPEND PROPERTY INSTALL_RPATH "${_asnumpy_ops_fft_libdir}")
+endif()
 
 # Install the compiled module
 install(TARGETS _core

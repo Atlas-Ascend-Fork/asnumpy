@@ -14,7 +14,29 @@
  * limitations under the License.
  ******************************************************************************/
 
-#include <algorithm>
+#include <asnumpy/fft/fft.hpp>
 #include <pybind11/pybind11.h>
 
-void bind_fft(pybind11::module_& fft) { fft.doc() = "fft module of asnumpy"; }
+namespace py = pybind11;
+
+void bind_fft(py::module_& fft) {
+    fft.doc() = "fft module of asnumpy";
+
+    fft.def("fft_c2c", &asnumpy::fft::FftC2C, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("inverse"),
+            py::arg("scale"),
+            "Complex-to-complex FFT along one axis, batched over the remaining dimensions. "
+            "The caller passes an already-normalised non-negative axis, the transform length and the "
+            "single scale factor applied to the backend result.");
+
+    fft.def("rfft", &asnumpy::fft::Rfft, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("scale"),
+            "Real-to-complex FFT along one axis; the transformed axis becomes n/2+1 complex bins.");
+
+    fft.def("irfft", &asnumpy::fft::Irfft, py::arg("x"), py::arg("axis"), py::arg("n"), py::arg("scale"),
+            "Complex-to-real inverse FFT along one axis; the spectrum axis must be Hermitian and the "
+            "output axis has length n.");
+
+    fft.def("fft2_c2c", &asnumpy::fft::Fft2C2C, py::arg("x"), py::arg("axis0"), py::arg("axis1"), py::arg("n0"),
+            py::arg("n1"), py::arg("inverse"), py::arg("scale0"), py::arg("scale1"),
+            "Two-dimensional complex-to-complex FFT over two axes, implemented as two one-dimensional "
+            "ops-fft passes (the native fft2_d kernel is limited to 32/64/128 on Ascend 910B).");
+}
