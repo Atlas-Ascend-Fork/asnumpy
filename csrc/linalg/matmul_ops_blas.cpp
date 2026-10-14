@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <string>
 
 #include <asnumpy/utils/status_handler.hpp>
 
@@ -111,12 +112,17 @@ int64_t CheckedMul(int64_t a, int64_t b, const char* what) {
     return a * b;
 }
 
-#endif // ASNUMPY_ENABLE_OPS_BLAS
+/// Validated operand geometry of a 2-D float32 matmul.
+struct GemmShape {
+    int64_t m = 0;
+    int64_t k = 0;
+    int64_t n = 0;
+    int64_t elements = 0;
+};
 
-} // namespace
-
-NPUArray MatmulOpsBlas(const NPUArray& x1, const NPUArray& x2) {
-#ifdef ASNUMPY_ENABLE_OPS_BLAS
+/// Checks the operand contract (2-D, float32, matching inner dimension, no overflow) and returns the
+/// result geometry. Throws std::invalid_argument / std::overflow_error on violation.
+GemmShape ValidateOperands(const NPUArray& x1, const NPUArray& x2) {
     if (x1.shape.size() != 2 || x2.shape.size() != 2) {
         throw std::invalid_argument(
             fmt::format("asnumpy.matmul(ops-blas): only 2-D operands are supported, got {}-D and {}-D", x1.shape.size(),
@@ -127,52 +133,49 @@ NPUArray MatmulOpsBlas(const NPUArray& x1, const NPUArray& x2) {
                                                 "and {}",
                                                 AclDtypeName(x1.aclDtype), AclDtypeName(x2.aclDtype)));
     }
-
-    const int64_t m = x1.shape[0];
-    const int64_t k = x1.shape[1];
+    GemmShape shape;
+    shape.m = x1.shape[0];
+    shape.k = x1.shape[1];
     const int64_t k2 = x2.shape[0];
-    const int64_t n = x2.shape[1];
-    if (k != k2) {
-        throw std::invalid_argument(fmt::format("asnumpy.matmul(ops-blas): inner dimensions differ ({} vs {})", k, k2));
+    shape.n = x2.shape[1];
+    if (shape.k != k2) {
+        throw std::invalid_argument(
+            fmt::format("asnumpy.matmul(ops-blas): inner dimensions differ ({} vs {})", shape.k, k2));
     }
-    const int64_t elements = CheckedMul(m, n, "result");
-    CheckedMul(elements, k, "multiply-add"); // overflow guard only
+    shape.elements = CheckedMul(shape.m, shape.n, "result");
+    CheckedMul(shape.elements, shape.k, "multiply-add"); // overflow guard only
+    return shape;
+}
 
-    // ops-blas documents m==0 / n==0 / batchCount==0 as "no computation, return SUCCESS" and leaves C
-    // untouched, so an empty result is produced here instead of handing an unwritten buffer back.
-    if (m == 0 || n == 0) {
-        return NPUArray({m, n}, ACL_FLOAT);
-    }
-
-    NPUArray result({m, n}, ACL_FLOAT);
-
+/// Issues the GEMM through ops-blas and synchronises the device with asnumpy's post-operator contract.
+///
+/// Row-major to column-major swap mapping (docs/matmul_backend.md):
+///   C_rm(m x n) = A_rm(m x k) * B_rm(k x n)   is computed as   C_cm(n x m) = B_cm(n x k) * A_cm(k x m)
+/// so the BLAS "A" operand is the row-major x2 buffer (lda = n), the BLAS "B" operand is the row-major
+/// x1 buffer (ldb = k) and C is the result buffer (ldc = n). The three buffers are simultaneously valid
+/// row-major and column-major views, so no copy or transpose is needed.
+/// Documented lower bounds: lda >= max(1, m_blas), ldb >= max(1, k_blas), ldc >= max(1, m_blas);
+/// k == 0 is legal (C := beta * C) and then requires ldb >= 1 rather than 0.
+void RunOpsBlasGemm(const NPUArray& x1, const NPUArray& x2, NPUArray& result, const GemmShape& shape) {
     ScopedBlasHandle handle;
     CheckBlas(aclblasCreate(handle.out()), "aclblasCreate");
     // nullptr selects the library's default stream, matching how every other asnumpy operator submits
     // its work (aclnn operators are submitted with a null stream as well).
     CheckBlas(aclblasSetStream(handle.get(), nullptr), "aclblasSetStream");
 
-    // Row-major to column-major swap mapping (docs/matmul_backend.md):
-    //   C_rm(m x n) = A_rm(m x k) * B_rm(k x n)   is computed as   C_cm(n x m) = B_cm(n x k) * A_cm(k x m)
-    // so the BLAS "A" operand is the row-major x2 buffer (lda = n), the BLAS "B" operand is the
-    // row-major x1 buffer (ldb = k) and C is the result buffer (ldc = n). The three buffers are
-    // simultaneously valid row-major and column-major views, so no copy or transpose is needed.
-    // Documented lower bounds: lda >= max(1, m_blas), ldb >= max(1, k_blas), ldc >= max(1, m_blas).
-    // k == 0 is legal (C := beta * C) and then requires ldb >= 1 rather than 0.
-    const int64_t lda = std::max<int64_t>(1, n);
-    const int64_t ldb = std::max<int64_t>(1, k);
-    const int64_t ldc = std::max<int64_t>(1, n);
+    const int64_t lda = std::max<int64_t>(1, shape.n);
+    const int64_t ldb = std::max<int64_t>(1, shape.k);
+    const int64_t ldc = std::max<int64_t>(1, shape.n);
     const float alpha = 1.0f;
     const float beta = 0.0f;
-    const int64_t stride_a = CheckedMul(k, n, "x2");
-    const int64_t stride_b = CheckedMul(m, k, "x1");
-    const int64_t stride_c = elements;
+    const int64_t stride_a = CheckedMul(shape.k, shape.n, "x2");
+    const int64_t stride_b = CheckedMul(shape.m, shape.k, "x1");
 
     const aclblasStatus_t status = aclblasSgemmStridedBatched(
-        handle.get(), ACLBLAS_OP_N, ACLBLAS_OP_N, ToBlasInt(n, "n"), ToBlasInt(m, "m"), ToBlasInt(k, "k"), &alpha,
-        static_cast<const float*>(x2.device_address()), ToBlasInt(lda, "lda"), stride_a,
-        static_cast<const float*>(x1.device_address()), ToBlasInt(ldb, "ldb"), stride_b, &beta,
-        static_cast<float*>(result.device_address()), ToBlasInt(ldc, "ldc"), stride_c, 1);
+        handle.get(), ACLBLAS_OP_N, ACLBLAS_OP_N, ToBlasInt(shape.n, "n"), ToBlasInt(shape.m, "m"),
+        ToBlasInt(shape.k, "k"), &alpha, static_cast<const float*>(x2.device_address()), ToBlasInt(lda, "lda"),
+        stride_a, static_cast<const float*>(x1.device_address()), ToBlasInt(ldb, "ldb"), stride_b, &beta,
+        static_cast<float*>(result.device_address()), ToBlasInt(ldc, "ldc"), shape.elements, 1);
     CheckBlas(status, "aclblasSgemmStridedBatched");
 
     // The kernels are asynchronous with respect to the handle's stream; synchronising the device keeps
@@ -180,13 +183,35 @@ NPUArray MatmulOpsBlas(const NPUArray& x1, const NPUArray& x2) {
     // for the whole execution.
     auto error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+}
 
+#else // ASNUMPY_ENABLE_OPS_BLAS
+
+/// Message shown when the optional backend was not compiled in (kept outside the entry point so that
+/// function stays small, see the project's function-size rule).
+std::string BackendUnavailableMessage() {
+    return "asnumpy.matmul(ops-blas) is not available: this asnumpy build was compiled without CANN ops-blas. "
+           "Build ops-blas for your SoC (git clone https://gitcode.com/cann/ops-blas.git && "
+           "bash build.sh --soc=ascend910b3 --ops=gemm_strided_batched), then rebuild asnumpy with "
+           "-DASNUMPY_ENABLE_OPS_BLAS=ON and -DASNUMPY_OPS_BLAS_ROOT=<ops-blas build or install prefix>.";
+}
+
+#endif // ASNUMPY_ENABLE_OPS_BLAS
+
+} // namespace
+
+NPUArray MatmulOpsBlas(const NPUArray& x1, const NPUArray& x2) {
+#ifdef ASNUMPY_ENABLE_OPS_BLAS
+    const GemmShape shape = ValidateOperands(x1, x2);
+    // ops-blas documents m==0 / n==0 / batchCount==0 as "no computation, return SUCCESS" and leaves C
+    // untouched, so an empty result is produced here instead of handing an unwritten buffer back.
+    if (shape.m == 0 || shape.n == 0) {
+        return NPUArray({shape.m, shape.n}, ACL_FLOAT);
+    }
+    NPUArray result({shape.m, shape.n}, ACL_FLOAT);
+    RunOpsBlasGemm(x1, x2, result, shape);
     return result;
 #else
-    throw std::runtime_error(
-        "asnumpy.matmul(ops-blas) is not available: this asnumpy build was compiled without CANN ops-blas. "
-        "Build ops-blas for your SoC (git clone https://gitcode.com/cann/ops-blas.git && "
-        "bash build.sh --soc=ascend910b3 --ops=gemm_strided_batched), then rebuild asnumpy with "
-        "-DASNUMPY_ENABLE_OPS_BLAS=ON and -DASNUMPY_OPS_BLAS_ROOT=<ops-blas build or install prefix>.");
+    throw std::runtime_error(BackendUnavailableMessage());
 #endif
 }

@@ -93,7 +93,7 @@ ASNUMPY_MATMUL_BACKEND=ops-blas python your_script.py   # 显式改用 ops-blas
   （`NotImplementedError`/`TypeError`/`ValueError`），不静默回退到原路径。
 - 用户要求"不能因启用可选后端而让公开 API 功能缩水"：默认仍是原实现，原实现对任意维、
   广播、float64、其他 dtype 的能力不受影响。
-- 可观察证据：成功进入 ops-blas 的调用会累加 `asnumpy.linalg.direct._OPS_BLAS_CALLS`，
+- 可观察证据：成功进入 ops-blas 的调用会累加 `asnumpy.linalg.direct.ops_blas_dispatches()`，
   测试据此断言结果确实由 ops-blas 产生，而不是"碰巧通过"。
 
 ## 四、构建

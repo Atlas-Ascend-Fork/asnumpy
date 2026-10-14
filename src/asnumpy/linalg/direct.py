@@ -41,6 +41,15 @@ _MATMUL_BACKENDS = ("original", "ops-blas")
 _OPS_BLAS_CALLS = 0
 
 
+def ops_blas_dispatches() -> int:
+    """Return how many calls have been dispatched into the ops-blas backend since import.
+
+    Read-only view of the internal counter, exposed so tests (and users diagnosing which backend ran)
+    do not have to touch a private attribute.
+    """
+    return _OPS_BLAS_CALLS
+
+
 def _matmul_backend() -> str:
     """Return the backend ``matmul`` will use, read from ``ASNUMPY_MATMUL_BACKEND`` per call."""
     backend = os.environ.get("ASNUMPY_MATMUL_BACKEND", "original").strip()
