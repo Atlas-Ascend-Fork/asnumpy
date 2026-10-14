@@ -186,14 +186,15 @@ NPUArray Power(const NPUArray& x1, const py::object& x2, std::optional<py::dtype
 /**
  * @brief Compute the element-wise floating-point power x1 ** x2.
  *
- * Similar to NumPy's float_power, always returns floating-point results
- * even if inputs are integers. Uses NPU operator aclnnPowTensorTensor.
+ * Matches NumPy's float_power: the result is always float64 (ufunc loop 'dd->d'),
+ * even if inputs are integers or float32. Uses NPU operator aclnnPowTensorTensor.
  * Supports broadcasting of input shapes according to standard array broadcasting rules.
+ * Complex inputs are rejected: aclnn cannot preserve the imaginary part here.
  *
  * @param x1 Base array.
  * @param x2 Exponent array.
- * @param dtype (optional) Target numpy dtype for the output array (must be float or double).
- * @return NPUArray Array of element-wise powers.
+ * @param dtype (optional) Target numpy dtype for the output array (only float64 is accepted).
+ * @return NPUArray Array of element-wise powers in float64.
  * @throws std::runtime_error If inputs are not broadcastable, dtype is unsupported, or ACL operation fails.
  */
 NPUArray FloatPower(const NPUArray& x1, const NPUArray& x2, std::optional<py::dtype> dtype = std::nullopt);
