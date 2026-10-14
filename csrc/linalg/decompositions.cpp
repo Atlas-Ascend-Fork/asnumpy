@@ -17,6 +17,7 @@
 #include <asnumpy/linalg/decompositions.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
+#include <asnumpy/utils/shape_check.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 
 #include <acl/acl.h>
@@ -30,6 +31,7 @@
 using namespace asnumpy;
 
 py::object Linalg_Qr(const NPUArray& a, const std::string& mode) {
+    detail::CheckNdimsAtLeast(a, 2, "qr");
     LOG_DEBUG("aclnnLinalgQr start: input_shape={}, aclDtype={}, mode={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype), mode);
     int size = a.shape.size();

@@ -15,6 +15,8 @@
 # *****************************************************************************
 
 
+from typing import Literal
+
 import numpy as np
 
 from .._core.linalg import (
@@ -33,7 +35,7 @@ from .._core.linalg import (
     slogdet as _slogdet,
 )
 from .._types import ArrayLike, AxisLike
-from ..utils import ndarray
+from ..utils import _ensure_ndarray, ndarray
 
 
 def _as_host_array(a: ArrayLike) -> np.ndarray:
@@ -64,7 +66,7 @@ def _normalize_norm_axis(axis: AxisLike, ndim: int):
         if idx < 0:
             idx += ndim
         if idx < 0 or idx >= ndim:
-            raise np.AxisError(idx, ndim=ndim)
+            raise np.exceptions.AxisError(idx, ndim=ndim)
         normalized.append(idx)
 
     if len(set(normalized)) != len(normalized):
@@ -82,7 +84,7 @@ def matrix_power(a: ArrayLike, n: int) -> ndarray:
 
 
 def qr(a: ArrayLike, mode: str = "reduced") -> ndarray | tuple:
-    result = _qr(a, mode)
+    result = _qr(_ensure_ndarray(a), mode)
     if isinstance(result, tuple):
         q, r = result
         return (ndarray(q), ndarray(r))
@@ -91,7 +93,7 @@ def qr(a: ArrayLike, mode: str = "reduced") -> ndarray | tuple:
 
 def norm(
     a: ArrayLike,
-    ord: str | int | float | None = None,
+    ord: Literal["fro", "nuc"] | int | float | None = None,
     axis: AxisLike = None,
     keepdims: bool = False,
 ) -> ndarray:
@@ -109,7 +111,7 @@ def norm(
 
 
 def det(a: ArrayLike) -> ndarray:
-    return ndarray(_det(a))
+    return ndarray(_det(_ensure_ndarray(a)))
 
 
 def slogdet(a: ArrayLike) -> tuple:
@@ -120,9 +122,9 @@ def slogdet(a: ArrayLike) -> tuple:
         np.any(np.isnan(host)) or np.any(np.isinf(host))
     ):
         return np.linalg.slogdet(host)  # type: ignore[no-any-return]
-    sign, logdet = _slogdet(a)
+    sign, logdet = _slogdet(_ensure_ndarray(a))
     return (ndarray(sign), ndarray(logdet))
 
 
 def inv(a: ArrayLike) -> ndarray:
-    return ndarray(_inv(a))
+    return ndarray(_inv(_ensure_ndarray(a)))
