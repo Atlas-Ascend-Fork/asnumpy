@@ -81,12 +81,10 @@ class ScopedHostBuffer {
     size_t bytes_ = 0;
 };
 
-#endif // ASNUMPY_ENABLE_OPS_SOLVER
-
-} // namespace
-
-NPUArray InvOpsSolver(const NPUArray& a) {
-#ifdef ASNUMPY_ENABLE_OPS_SOLVER
+/// Validates the operand contract of the ops-solver backend and returns the matrix order.
+///
+/// Throws std::invalid_argument for unsupported rank/dtype/shape or sizes outside the library range.
+int64_t ValidateOperand(const NPUArray& a) {
     if (a.shape.size() != 2) {
         throw std::invalid_argument(
             fmt::format("asnumpy.linalg.inv(ops-solver): only 2-D operands are supported, got {}-D", a.shape.size()));
@@ -100,14 +98,18 @@ NPUArray InvOpsSolver(const NPUArray& a) {
         throw std::invalid_argument(
             fmt::format("asnumpy.linalg.inv(ops-solver): only float32 is supported, got {}", AclDtypeName(a.aclDtype)));
     }
-    if (n == 0) {
-        // NumPy returns an empty result for a 0x0 operand; the library rejects n == 0, so answer here.
-        return NPUArray({0, 0}, ACL_FLOAT);
-    }
     if (n > kOpsSolverMaxN) {
         throw std::invalid_argument(
             fmt::format("asnumpy.linalg.inv(ops-solver): n={} exceeds the backend limit of {}", n, kOpsSolverMaxN));
     }
+    return n;
+}
+
+/// Runs the inversion on the NPU through ops-solver and fills `result` with it.
+///
+/// The library takes a HOST pointer and performs its own factorisation, so the operand is staged
+/// through pinned host memory: the caller's device buffer is never handed over and never modified.
+void RunOpsSolverInverse(const NPUArray& a, int64_t n, NPUArray& result) {
     const size_t bytes = static_cast<size_t>(n) * static_cast<size_t>(n) * sizeof(float);
 
     ScopedSolverHandle handle;
@@ -118,8 +120,6 @@ NPUArray InvOpsSolver(const NPUArray& a) {
     error = aclsolverSetStream(handle.get(), nullptr);
     ACL_RT_CHECK(error, "aclsolverSetStream");
 
-    // The library treats A as a HOST pointer: stage the operand through pinned host memory so the
-    // caller's device buffer is never overwritten and no device pointer is passed by accident.
     ScopedHostBuffer staging;
     if (!staging.alloc(bytes)) {
         throw std::runtime_error(
@@ -141,20 +141,40 @@ NPUArray InvOpsSolver(const NPUArray& a) {
             fmt::format("asnumpy.linalg.inv(ops-solver): aclsolverSgetri failed (aclError={}, info={})", ret, info));
     }
 
-    NPUArray result({n, n}, ACL_FLOAT);
     error = aclrtMemcpy(result.device_address(), bytes, staging.get(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
     ACL_RT_CHECK(error, "aclrtMemcpy(host->device)");
     // The library already synchronised, but keeping asnumpy's post-operator contract makes the
     // host staging buffer's lifetime unambiguous.
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+}
 
+#else // ASNUMPY_ENABLE_OPS_SOLVER
+
+/// Message shown when the optional backend was not compiled in (kept outside the entry point so that
+/// function stays small, see the project's function-size rule).
+std::string BackendUnavailableMessage() {
+    return "asnumpy.linalg.inv(ops-solver) is not available: this asnumpy build was compiled without CANN ops-solver. "
+           "Build ops-solver for your SoC (git clone https://gitcode.com/cann/ops-solver.git && "
+           "cmake -S . -B build-lib -DSOC_VERSION=ascend910b -DBUILD_TEST=OFF && cmake --build build-lib -j), then "
+           "rebuild asnumpy with -DASNUMPY_ENABLE_OPS_SOLVER=ON and -DASNUMPY_OPS_SOLVER_ROOT=<ops-solver root>.";
+}
+
+#endif // ASNUMPY_ENABLE_OPS_SOLVER
+
+} // namespace
+
+NPUArray InvOpsSolver(const NPUArray& a) {
+#ifdef ASNUMPY_ENABLE_OPS_SOLVER
+    const int64_t n = ValidateOperand(a);
+    if (n == 0) {
+        // NumPy returns an empty result for a 0x0 operand; the library rejects n == 0, so answer here.
+        return NPUArray({0, 0}, ACL_FLOAT);
+    }
+    NPUArray result({n, n}, ACL_FLOAT);
+    RunOpsSolverInverse(a, n, result);
     return result;
 #else
-    throw std::runtime_error(
-        "asnumpy.linalg.inv(ops-solver) is not available: this asnumpy build was compiled without CANN ops-solver. "
-        "Build ops-solver for your SoC (git clone https://gitcode.com/cann/ops-solver.git && "
-        "cmake -S . -B build-lib -DSOC_VERSION=ascend910b -DBUILD_TEST=OFF && cmake --build build-lib -j), then "
-        "rebuild asnumpy with -DASNUMPY_ENABLE_OPS_SOLVER=ON and -DASNUMPY_OPS_SOLVER_ROOT=<ops-solver root>.");
+    throw std::runtime_error(BackendUnavailableMessage());
 #endif
 }

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, TypeVar, Union
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, Union
 
 import numpy as np
 
@@ -34,7 +34,7 @@ ArrayLike = Union[  # noqa: UP007
     Sequence,
 ]
 
-DTypeLike = np.dtype | str | type | None
+DTypeLike: TypeAlias = np.dtype | str | type | None
 
 ShapeLike = int | Sequence[int]
 

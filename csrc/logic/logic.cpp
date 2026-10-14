@@ -17,6 +17,7 @@
 #include <asnumpy/logic/logic.hpp>
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
+#include <asnumpy/utils/shape_check.hpp>
 #include <asnumpy/utils/status_handler.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -107,18 +108,18 @@ NPUArray All(const NPUArray& x) {
 
 /// Reduce array by logical AND operation over specified dimensions.
 NPUArray All(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) {
+    auto axes = detail::NormalizeAxes(dim, x.shape.size(), "all");
     LOG_DEBUG("aclnnAll start: input_shape={}, tensorSize={}, aclDtype={}, dim={}, keepdims={}",
               detail::FormatShape(x.shape), x.tensorSize, AclDtypeName(x.aclDtype), detail::FormatShape(dim), keepdims);
     std::vector<int64_t> shape = x.shape;
     if (keepdims) {
-        for (int i = 0; i < dim.size(); i++) {
-            shape[dim[i]] = 1;
+        for (auto ax : axes) {
+            shape[ax] = 1;
         }
     } else {
-        std::vector<int64_t> dim_remove = dim;
-        std::sort(dim_remove.begin(), dim_remove.end(), std::greater<int64_t>());
-        for (int i = 0; i < dim.size(); i++) {
-            shape.erase(shape.begin() + dim_remove[i]);
+        // sorted ascending; erase back-to-front
+        for (auto it = axes.rbegin(); it != axes.rend(); ++it) {
+            shape.erase(shape.begin() + *it);
         }
     }
     auto result = NPUArray(shape, ACL_BOOL);
@@ -128,7 +129,7 @@ NPUArray All(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     void* workspaceAddr = nullptr;
 
     // build dim array
-    aclIntArray* aclDim = aclCreateIntArray(dim.data(), dim.size());
+    aclIntArray* aclDim = aclCreateIntArray(axes.data(), axes.size());
     if (!aclDim) {
         throw std::runtime_error(fmt::format("[logic.cpp]({}) failed to create aclIntArray", __func__));
     }
@@ -185,18 +186,18 @@ NPUArray Any(const NPUArray& x) {
 
 /// Reduce array by logical OR operation over specified dimensions.
 NPUArray Any(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) {
+    auto axes = detail::NormalizeAxes(dim, x.shape.size(), "any");
     LOG_DEBUG("aclnnAny start: input_shape={}, tensorSize={}, aclDtype={}, dim={}, keepdims={}",
               detail::FormatShape(x.shape), x.tensorSize, AclDtypeName(x.aclDtype), detail::FormatShape(dim), keepdims);
     std::vector<int64_t> shape = x.shape;
     if (keepdims) {
-        for (int i = 0; i < dim.size(); i++) {
-            shape[dim[i]] = 1;
+        for (auto ax : axes) {
+            shape[ax] = 1;
         }
     } else {
-        std::vector<int64_t> dim_remove = dim;
-        std::sort(dim_remove.begin(), dim_remove.end(), std::greater<int64_t>());
-        for (int i = 0; i < dim.size(); i++) {
-            shape.erase(shape.begin() + dim_remove[i]);
+        // sorted ascending; erase back-to-front
+        for (auto it = axes.rbegin(); it != axes.rend(); ++it) {
+            shape.erase(shape.begin() + *it);
         }
     }
     auto result = NPUArray(shape, ACL_BOOL);
@@ -206,7 +207,7 @@ NPUArray Any(const NPUArray& x, const std::vector<int64_t>& dim, bool keepdims) 
     void* workspaceAddr = nullptr;
 
     // build dim array
-    aclIntArray* aclDim = aclCreateIntArray(dim.data(), dim.size());
+    aclIntArray* aclDim = aclCreateIntArray(axes.data(), axes.size());
     if (!aclDim) {
         throw std::runtime_error(fmt::format("[logic.cpp]({}) failed to create aclIntArray", __func__));
     }

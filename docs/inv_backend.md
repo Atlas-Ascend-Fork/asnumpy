@@ -65,7 +65,7 @@
 - 显式选择该后端时，范围外输入**明确报错、不静默回退**：
   非 ndarray → `TypeError`；非 float32 → `TypeError`；非 2-D / 非方阵 → `LinAlgError`；
   精确奇异 → `LinAlgError`；未启用该后端构建 → 带构建指引的 `RuntimeError`。
-- 可观察证据：成功进入该后端的调用累加 `asnumpy.linalg._linalg._OPS_SOLVER_CALLS`。
+- 可观察证据：成功进入该后端的调用累加 `asnumpy.linalg._linalg.ops_solver_dispatches()`。
 - 输入保护与传输：输入**不会**被覆盖（库要求 host 指针，asnumpy 用自有 pinned host 暂存区
   `aclrtMallocHost`，D2H→调用→H2D 共 **2 次 n² 传输**），结果写入新分配的 NPUArray。
 - 资源：handle、host 暂存区均 RAII，异常路径释放；维度与字节数做溢出/范围检查。
