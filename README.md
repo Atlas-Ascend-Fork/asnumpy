@@ -7,7 +7,7 @@
 ### NumPy for Ascend NPU
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![CANN](https://img.shields.io/badge/CANN-8.2RC1+-orange.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Ascend%20910B-green.svg)]()
 [![Version](https://img.shields.io/badge/version-0.2.0-brightgreen.svg)]()
@@ -68,7 +68,7 @@ print(result.to_numpy())
 
 ## Installation
 
-**Requirements:** GCC >= 11.2, CMake >= 3.26, Python >= 3.9, CANN >= 8.2.RC1.alpha003, Ascend 910B NPU.
+**Requirements:** GCC >= 11.2, CMake >= 3.26, Python >= 3.10, CANN >= 8.2.RC1.alpha003, Ascend 910B NPU.
 
 Set the CANN environment variable before building:
 

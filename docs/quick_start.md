@@ -8,7 +8,7 @@ This guide walks you through the basic usage of AsNumpy and shows how to migrate
 
 - AsNumpy installed ([Installation Guide](../README.md#installation))
 - Ascend 910B NPU with CANN 8.2.RC1.alpha003+
-- Python 3.9+
+- Python 3.10+
 
 ## NumPy vs AsNumpy
 
