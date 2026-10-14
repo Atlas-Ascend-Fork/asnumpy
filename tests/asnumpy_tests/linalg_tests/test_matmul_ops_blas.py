@@ -53,13 +53,13 @@ def _pair(m, k, n, seed=17):
 
 def _ops_blas_matmul(a, b):
     """Call matmul through the ops-blas backend and prove that it really was used."""
-    before = direct._OPS_BLAS_CALLS
+    before = direct.ops_blas_dispatches()
     os.environ["ASNUMPY_MATMUL_BACKEND"] = "ops-blas"
     try:
         result = asnumpy.matmul(a, b)
     finally:
         os.environ.pop("ASNUMPY_MATMUL_BACKEND", None)
-    assert direct._OPS_BLAS_CALLS == before + 1, "the ops-blas backend was not executed"
+    assert direct.ops_blas_dispatches() == before + 1, "the ops-blas backend was not executed"
     return result
 
 
@@ -71,9 +71,11 @@ def test_matches_numpy_and_original_backend(m, k, n):
     a_before, b_before = a.to_numpy().copy(), b.to_numpy().copy()
 
     expected = numpy.matmul(a_host, b_host)
-    calls_before = direct._OPS_BLAS_CALLS
+    calls_before = direct.ops_blas_dispatches()
     original = asnumpy.matmul(a, b)  # default backend
-    assert direct._OPS_BLAS_CALLS == calls_before, "the default backend must not touch ops-blas"
+    assert direct.ops_blas_dispatches() == calls_before, (
+        "the default backend must not touch ops-blas"
+    )
     got = _ops_blas_matmul(a, b)
 
     assert isinstance(got, asnumpy.ndarray)
@@ -130,14 +132,14 @@ def test_large_dynamic_range_and_cancellation():
 def test_inner_dimension_mismatch_raises():
     a = asnumpy.ndarray.from_numpy(numpy.ones((3, 4), dtype=numpy.float32))
     b = asnumpy.ndarray.from_numpy(numpy.ones((5, 6), dtype=numpy.float32))
-    calls_before = direct._OPS_BLAS_CALLS
+    calls_before = direct.ops_blas_dispatches()
     os.environ["ASNUMPY_MATMUL_BACKEND"] = "ops-blas"
     try:
         with pytest.raises(ValueError, match="not aligned"):
             asnumpy.matmul(a, b)
     finally:
         os.environ.pop("ASNUMPY_MATMUL_BACKEND", None)
-    assert direct._OPS_BLAS_CALLS == calls_before, (
+    assert direct.ops_blas_dispatches() == calls_before, (
         "a rejected call must not count as an ops-blas dispatch"
     )
 
@@ -195,7 +197,7 @@ def test_invalid_backend_value_raises():
 def test_default_backend_keeps_full_capability():
     """默认后端（原实现）不受可选后端影响：多维、广播、float64 仍可用"""
     rng = numpy.random.default_rng(5)
-    calls_before = direct._OPS_BLAS_CALLS
+    calls_before = direct.ops_blas_dispatches()
     a3 = rng.standard_normal((2, 3, 4)).astype(numpy.float32)
     b3 = rng.standard_normal((2, 4, 5)).astype(numpy.float32)
     got = asnumpy.matmul(asnumpy.ndarray.from_numpy(a3), asnumpy.ndarray.from_numpy(b3))
@@ -205,7 +207,7 @@ def test_default_backend_keeps_full_capability():
     b64 = rng.standard_normal((4, 4))
     got64 = asnumpy.matmul(asnumpy.ndarray.from_numpy(a64), asnumpy.ndarray.from_numpy(b64))
     numpy.testing.assert_allclose(got64.to_numpy(), numpy.matmul(a64, b64), rtol=1e-10, atol=1e-12)
-    assert direct._OPS_BLAS_CALLS == calls_before
+    assert direct.ops_blas_dispatches() == calls_before
 
 
 def test_repeated_calls_are_stable():
@@ -213,11 +215,11 @@ def test_repeated_calls_are_stable():
     a = asnumpy.ndarray.from_numpy(a_host)
     b = asnumpy.ndarray.from_numpy(b_host)
     first = _ops_blas_matmul(a, b).to_numpy()
-    before = direct._OPS_BLAS_CALLS
+    before = direct.ops_blas_dispatches()
     for _ in range(20):
         got = _ops_blas_matmul(a, b).to_numpy()
         numpy.testing.assert_array_equal(got, first)
-    assert direct._OPS_BLAS_CALLS == before + 20
+    assert direct.ops_blas_dispatches() == before + 20
 
 
 def test_missing_backend_message_is_actionable():
