@@ -8,9 +8,9 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
-[![CANN](https://img.shields.io/badge/CANN-8.2RC1+-orange.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Ascend%20910B-green.svg)]()
-[![Version](https://img.shields.io/badge/version-0.2.0-brightgreen.svg)]()
+[![CANN](https://img.shields.io/badge/CANN-8.2RC1+-orange.svg)](https://www.hiascend.com/cann)
+[![Platform](https://img.shields.io/badge/platform-Ascend%20910B-green.svg)](#installation)
+[![Version](https://img.shields.io/badge/version-0.2.0-brightgreen.svg)](CHANGELOG.md)
 
 [Docs](docs/) | [Installation](#installation) | [Quick Start](docs/quick_start.md) | [Examples](examples/) | [Architecture](docs/architecture.md) | [Issues](https://gitcode.com/cann/asnumpy/issues) | [OpenBOAT](https://gitcode.com/HIT1920/OpenBOAT)
 
