@@ -15,6 +15,7 @@
  ******************************************************************************/
 
 #include <asnumpy/linalg/decompositions.hpp>
+#include <asnumpy/linalg/matmul_ops_blas.hpp>
 #include <asnumpy/linalg/norms.hpp>
 #include <asnumpy/linalg/product.hpp>
 #include <asnumpy/linalg/solving_inverting.hpp>
@@ -50,6 +51,7 @@ void bind_linalg_no_submodule(py::module_& linalg) {
     linalg.def("outer", &outer, py::arg("a"), py::arg("b"));
     linalg.def("vdot", &vdot, py::arg("a"), py::arg("b"));
     linalg.def("matmul", &Matmul, py::arg("x1"), py::arg("x2"));
+    linalg.def("matmul_ops_blas", &MatmulOpsBlas, py::arg("x1"), py::arg("x2"));
     linalg.def(
         "einsum",
         [](const char* subscripts, py::args operands) {
