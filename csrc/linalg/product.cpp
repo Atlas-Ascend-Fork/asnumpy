@@ -18,6 +18,7 @@
 #include <asnumpy/utils/acl_executor.hpp>
 #include <asnumpy/utils/acl_resource.hpp>
 #include <asnumpy/utils/npu_array.hpp>
+#include <asnumpy/utils/shape_check.hpp>
 #include <acl/acl.h>
 #include <aclnn/acl_meta.h>
 #include <aclnn/aclnn_base.h>
@@ -55,6 +56,11 @@ NPUArray Matmul(const NPUArray& x1, const NPUArray& x2) {
     }
 
     // 2-D+ matrix multiplication via aclnnMatmul
+    // x1_ndim - 2 below underflows for mixed 1-D / 2-D+ operands
+    if (x1_ndim < 2 || x2_ndim < 2) {
+        throw std::invalid_argument(
+            "matmul() does not support mixed 1-D / 2-D+ operands; promote 1-D operands to 2-D first");
+    }
     size_t x1_batch = x1_ndim - 2;
     size_t x2_batch = x2_ndim - 2;
     size_t out_batch = std::max(x1_batch, x2_batch);
@@ -87,6 +93,28 @@ NPUArray Matmul(const NPUArray& x1, const NPUArray& x2) {
 }
 
 NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
+    // aclnnEinsum implements exactly two equations; validate before the
+    // LOG_DEBUG below, whose arguments index operands[1]
+    if (operands.size() != 2) {
+        throw std::invalid_argument(fmt::format("einsum() requires exactly 2 operands, got {}", operands.size()));
+    }
+    const bool isOuter = !std::strcmp(subscripts, "a,b->ab");
+    const bool isBatched = !std::strcmp(subscripts, "abcd,abced->abce");
+    if (!isOuter && !isBatched) {
+        throw std::invalid_argument(fmt::format(
+            "einsum() subscripts '{}' are not supported; supported forms are 'a,b->ab' and 'abcd,abced->abce'",
+            subscripts));
+    }
+    if (isOuter && (operands[0].shape.size() != 1 || operands[1].shape.size() != 1)) {
+        throw std::invalid_argument(fmt::format("einsum('a,b->ab') requires two 1-D operands, got shapes {} and {}",
+                                                detail::FormatShape(operands[0].shape),
+                                                detail::FormatShape(operands[1].shape)));
+    }
+    if (isBatched && (operands[0].shape.size() != 4 || operands[1].shape.size() != 5)) {
+        throw std::invalid_argument(
+            fmt::format("einsum('abcd,abced->abce') requires a 4-D and a 5-D operand, got shapes {} and {}",
+                        detail::FormatShape(operands[0].shape), detail::FormatShape(operands[1].shape)));
+    }
     LOG_DEBUG("aclnnEinsum start: subscripts={}, x1_shape={}, x2_shape={}, aclDtype={}", subscripts,
               detail::FormatShape(operands[0].shape), detail::FormatShape(operands[1].shape),
               AclDtypeName(operands[0].aclDtype));
@@ -95,7 +123,7 @@ NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
     auto input = aclCreateTensorList(tmp.data(), tmp.size());
     // einsum output shape handling
     std::vector<int64_t> shape;
-    if (!std::strcmp(subscripts, "a,b->ab")) {
+    if (isOuter) {
         shape = {operands[0].shape[0], operands[1].shape[0]};
     } else {
         shape = {operands[1].shape[0], operands[1].shape[1], operands[1].shape[2], operands[1].shape[4]};
@@ -115,6 +143,7 @@ NPUArray Einsum(const char* subscripts, const std::vector<NPUArray>& operands) {
 }
 
 NPUArray Matrix_power(const NPUArray& a, int64_t n) {
+    detail::CheckNdimsAtLeast(a, 2, "matrix_power");
     LOG_DEBUG("aclnnMatmul start: input_shape={}, aclDtype={}, n={}", detail::FormatShape(a.shape),
               AclDtypeName(a.aclDtype), n);
     auto shape = a.shape;
@@ -213,6 +242,11 @@ NPUArray dot(const NPUArray& a, const NPUArray& b) {
 
     // case 2: 1D · 1D → scalar
     if (a.shape.size() == 1 && b.shape.size() == 1) {
+        if (a.shape[0] != b.shape[0]) {
+            throw std::invalid_argument(fmt::format("shapes ({}) and ({}) not aligned: {} (dim 0) != {} (dim 0)",
+                                                    detail::FormatShape(a.shape), detail::FormatShape(b.shape),
+                                                    a.shape[0], b.shape[0]));
+        }
         auto out = NPUArray({}, a.dtype);
         uint64_t workspaceSize = 0;
         aclOpExecutor* executor = nullptr;
@@ -233,6 +267,11 @@ NPUArray dot(const NPUArray& a, const NPUArray& b) {
 
     // case 3: 2D × 2D → matrix multiply
     if (a.shape.size() == 2 && b.shape.size() == 2) {
+        if (a.shape[1] != b.shape[0]) {
+            throw std::invalid_argument(fmt::format("shapes ({}) and ({}) not aligned: {} (dim 1) != {} (dim 0)",
+                                                    detail::FormatShape(a.shape), detail::FormatShape(b.shape),
+                                                    a.shape[1], b.shape[0]));
+        }
         std::vector<int64_t> out_shape = {a.shape[0], b.shape[1]};
         auto out = NPUArray(out_shape, a.dtype);
 
@@ -269,6 +308,11 @@ NPUArray vdot(const NPUArray& a, const NPUArray& b) {
     LOG_DEBUG("aclnnDot start: a_shape={}, b_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               detail::FormatShape(b.shape), AclDtypeName(a.aclDtype));
     aclnnStatus ret; // For receiving API return status
+    // both operands are flattened into buffers sized from a below
+    if (a.tensorSize != b.tensorSize) {
+        throw std::invalid_argument(
+            fmt::format("vdot() requires operands of equal size, got {} and {} elements", a.tensorSize, b.tensorSize));
+    }
     const int64_t num_elements = a.tensorSize;
     // ===================================================================================
     // Step 1: Flatten

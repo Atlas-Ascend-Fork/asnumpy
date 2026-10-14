@@ -16,7 +16,7 @@
 
 import operator
 from collections.abc import Sequence
-from typing import overload
+from typing import Literal, overload
 
 import numpy as np
 from loguru import logger
@@ -89,7 +89,7 @@ class ndarray(_ndarray):
         return cls(base_obj)
 
     def to_numpy(self) -> np.ndarray:
-        return super().to_numpy()
+        return super().to_numpy()  # type: ignore[no-any-return]
 
     __array_priority__ = 100.0
 
@@ -177,7 +177,7 @@ class ndarray(_ndarray):
         self,
         dtype,
         order: str = "K",
-        casting: str = "unsafe",
+        casting: Literal["no", "equiv", "safe", "same_kind", "unsafe"] = "unsafe",
         subok: bool = True,
         copy: bool = True,
     ) -> "ndarray":
@@ -255,3 +255,10 @@ def _normalize_shape(shape: int | Sequence[int]) -> list[int]:
         raise ValueError("negative dimensions are not allowed")
 
     return normalized
+
+
+def _ensure_ndarray(a) -> ndarray:
+    """Coerce an ArrayLike argument to a public ndarray (host inputs are copied to device)."""
+    if isinstance(a, ndarray):
+        return a
+    return ndarray.from_numpy(np.asarray(a))

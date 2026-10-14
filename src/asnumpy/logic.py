@@ -68,7 +68,7 @@ from ._core.logic import (
 )
 from ._types import ArrayLike, AxisLike, DTypeLike
 from ._ufunc import create_ufunc as _create_ufunc
-from .utils import _convert_dtype, ndarray
+from .utils import _convert_dtype, _ensure_ndarray, ndarray
 
 
 def _normalize_axis(axis: AxisLike, x: ArrayLike) -> tuple[int, ...] | AxisLike:
@@ -118,12 +118,14 @@ def _normalize_axis(axis: AxisLike, x: ArrayLike) -> tuple[int, ...] | AxisLike:
 
 
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
+    x = _ensure_ndarray(x)
     if axis is None:
         return ndarray(_all(x))
     return ndarray(_all(x, _normalize_axis(axis, x), keepdims))
 
 
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
+    x = _ensure_ndarray(x)
     if axis is None:
         return ndarray(_any(x))
     return ndarray(_any(x, _normalize_axis(axis, x), keepdims))

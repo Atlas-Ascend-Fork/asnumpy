@@ -26,7 +26,7 @@ from .._core import (
     vdot as _vdot,
 )
 from .._types import ArrayLike
-from ..utils import ndarray
+from ..utils import _ensure_ndarray, ndarray
 
 
 def _as_host_array(a: ArrayLike) -> np.ndarray:
@@ -74,7 +74,7 @@ def matmul(x1: ArrayLike, x2: ArrayLike) -> ndarray:
 
 
 def einsum(subscripts: str, *operands: ArrayLike) -> ndarray:
-    return ndarray(_einsum(subscripts, *operands))
+    return ndarray(_einsum(subscripts, *(_ensure_ndarray(op) for op in operands)))
 
 
 _direct_all_ = [

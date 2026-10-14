@@ -141,6 +141,7 @@ NPUArray Max(const NPUArray& a, int64_t axis, bool keepdims) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnAmax completed");
     return result;
 }
@@ -231,6 +232,7 @@ NPUArray Nanmax(const NPUArray& a, int64_t axis, bool keepdims) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnAmax completed");
     return result;
 }
@@ -321,6 +323,7 @@ NPUArray Min(const NPUArray& a, int64_t axis, bool keepdims) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnAmin completed");
     return result;
 }
@@ -411,6 +414,7 @@ NPUArray Nanmin(const NPUArray& a, int64_t axis, bool keepdims) {
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnAmin completed");
     return result;
 }
