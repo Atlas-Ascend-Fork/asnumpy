@@ -15,6 +15,8 @@
 # *****************************************************************************
 
 
+from typing import Literal
+
 import numpy as np
 
 from .._core.linalg import (
@@ -64,7 +66,7 @@ def _normalize_norm_axis(axis: AxisLike, ndim: int):
         if idx < 0:
             idx += ndim
         if idx < 0 or idx >= ndim:
-            raise np.AxisError(idx, ndim=ndim)
+            raise np.exceptions.AxisError(idx, ndim=ndim)
         normalized.append(idx)
 
     if len(set(normalized)) != len(normalized):
@@ -91,7 +93,7 @@ def qr(a: ArrayLike, mode: str = "reduced") -> ndarray | tuple:
 
 def norm(
     a: ArrayLike,
-    ord: str | int | float | None = None,
+    ord: Literal["fro", "nuc"] | int | float | None = None,
     axis: AxisLike = None,
     keepdims: bool = False,
 ) -> ndarray:
