@@ -29,7 +29,6 @@
 #include <aclnnop/aclnn_atan.h>
 #include <aclnnop/aclnn_atan2.h>
 #include <aclnnop/aclnn_cos.h>
-#include <aclnnop/aclnn_foreach_mul_scalar.h>
 #include <aclnnop/aclnn_mul.h>
 #include <aclnnop/aclnn_sin.h>
 #include <aclnnop/aclnn_sqrt.h>
@@ -37,11 +36,23 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <stdexcept>
 
 namespace asnumpy {
+
+namespace {
+
+uint16_t FloatToFp16Bits(float value) {
+    uint32_t float_bits;
+    std::memcpy(&float_bits, &value, sizeof(float_bits));
+    return static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
+                                 ((float_bits >> 13) & 0x03FFU));
+}
+
+} // namespace
 
 NPUArray Sin(const NPUArray& x) {
     return UnaryFloatingPromoteOp(
@@ -128,17 +139,23 @@ NPUArray Arctan(const NPUArray& x) {
 }
 
 NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
-    LOG_DEBUG("aclnnMul start: a_shape={}, b_shape={}, aclDtype={}", detail::FormatShape(a.shape),
+    LOG_DEBUG("Hypot start: a_shape={}, b_shape={}, aclDtype={}", detail::FormatShape(a.shape),
               detail::FormatShape(b.shape), AclDtypeName(a.aclDtype));
 
-    auto broadcast = GetBroadcastShape(a, b);
+    aclDataType dtype = PromoteBinaryFloating(a.aclDtype, b.aclDtype);
+    ACL_DTYPE_WARN(a.aclDtype, dtype, __func__);
+    ACL_DTYPE_WARN(b.aclDtype, dtype, __func__);
+    NPUArray in_a = EnsureAclDtype(a, dtype);
+    NPUArray in_b = EnsureAclDtype(b, dtype);
+
+    auto broadcast = GetBroadcastShape(in_a, in_b);
 
     // step 1: compute a squared (a²)
-    NPUArray a_squared(a.shape, a.dtype);
+    NPUArray a_squared(in_a.shape, in_a.dtype);
     uint64_t a_sq_workspace_size = 0;
     aclOpExecutor* a_sq_executor = nullptr;
-    auto error =
-        aclnnMulGetWorkspaceSize(a.tensorPtr, a.tensorPtr, a_squared.tensorPtr, &a_sq_workspace_size, &a_sq_executor);
+    auto error = aclnnMulGetWorkspaceSize(in_a.tensorPtr, in_a.tensorPtr, a_squared.tensorPtr, &a_sq_workspace_size,
+                                          &a_sq_executor);
     ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
 
     AclWorkspace a_sq_workspace(a_sq_workspace_size);
@@ -151,11 +168,11 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
     LOG_INFO("aclnnMul completed");
 
     // step 2: compute b squared (b²)
-    NPUArray b_squared(b.shape, b.dtype);
+    NPUArray b_squared(in_b.shape, in_b.dtype);
     uint64_t b_sq_workspace_size = 0;
     aclOpExecutor* b_sq_executor = nullptr;
-    error =
-        aclnnMulGetWorkspaceSize(b.tensorPtr, b.tensorPtr, b_squared.tensorPtr, &b_sq_workspace_size, &b_sq_executor);
+    error = aclnnMulGetWorkspaceSize(in_b.tensorPtr, in_b.tensorPtr, b_squared.tensorPtr, &b_sq_workspace_size,
+                                     &b_sq_executor);
     ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
 
     AclWorkspace b_sq_workspace(b_sq_workspace_size);
@@ -169,21 +186,16 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
 
     // step 3: compute sum of squares (a² + b²)
     LOG_DEBUG("aclnnAdd start: a_squared_shape={}, b_squared_shape={}, aclDtype={}",
-              detail::FormatShape(a_squared.shape), detail::FormatShape(b_squared.shape), AclDtypeName(a.aclDtype));
-    auto dtype = a.aclDtype;
-    if (a.aclDtype == b.aclDtype) {
-        dtype = a.aclDtype;
-    } else if (a.aclDtype == ACL_DOUBLE || b.aclDtype == ACL_DOUBLE) {
-        dtype = ACL_DOUBLE;
-    } else if (a.aclDtype == ACL_FLOAT || b.aclDtype == ACL_FLOAT) {
-        dtype = ACL_FLOAT;
-    }
+              detail::FormatShape(a_squared.shape), detail::FormatShape(b_squared.shape), AclDtypeName(dtype));
     NPUArray sum_squares(broadcast, dtype);
     uint64_t add_workspace_size = 0;
     aclOpExecutor* add_executor = nullptr;
     aclScalar* alpha_scalar;
-    if (dtype == ACL_DOUBLE || dtype == ACL_INT64) {
+    if (dtype == ACL_DOUBLE) {
         double alpha = 1.0;
+        alpha_scalar = aclCreateScalar(&alpha, dtype);
+    } else if (dtype == ACL_FLOAT16) {
+        uint16_t alpha = FloatToFp16Bits(1.0f);
         alpha_scalar = aclCreateScalar(&alpha, dtype);
     } else {
         float alpha = 1.0f;
@@ -206,14 +218,7 @@ NPUArray Hypot(const NPUArray& a, const NPUArray& b) {
     // step 4: compute square root (√(a² + b²))
     LOG_DEBUG("aclnnSqrt start: input_shape={}, aclDtype={}", detail::FormatShape(sum_squares.shape),
               AclDtypeName(sum_squares.aclDtype));
-    aclDataType aclType = ACL_DOUBLE;
-    if (sum_squares.aclDtype == ACL_FLOAT || sum_squares.aclDtype == ACL_FLOAT16 ||
-        sum_squares.aclDtype == ACL_DOUBLE || sum_squares.aclDtype == ACL_COMPLEX64 ||
-        sum_squares.aclDtype == ACL_COMPLEX128) {
-        aclType = sum_squares.aclDtype;
-    }
-    ACL_DTYPE_WARN(sum_squares.aclDtype, aclType, __func__);
-    NPUArray result(broadcast, aclType);
+    NPUArray result(broadcast, dtype);
     uint64_t sqrt_workspace_size = 0;
     aclOpExecutor* sqrt_executor = nullptr;
     error = aclnnSqrtGetWorkspaceSize(sum_squares.tensorPtr, result.tensorPtr, &sqrt_workspace_size, &sqrt_executor);
@@ -259,8 +264,7 @@ NPUArray Arctan2(const NPUArray& y, const NPUArray& x) {
 }
 
 NPUArray Radians(const NPUArray& x) {
-    LOG_DEBUG("aclnnForeachMulScalar start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape),
-              AclDtypeName(x.aclDtype));
+    LOG_DEBUG("aclnnMuls start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape), AclDtypeName(x.aclDtype));
 
     // validate input parameters
     if (x.tensorSize == 0) {
@@ -277,91 +281,81 @@ NPUArray Radians(const NPUArray& x) {
     NPUArray result(x.shape, x.aclDtype);
 
     // degrees-to-radians factor: π/180
-    NPUArray scalar_factor({}, x.aclDtype);
     const double rad_factor = M_PI / 180.0;
-    void* scalar_factor_ptr = nullptr;
-
-    // declare resources
-    uint64_t workspace_size = 0;
-    aclOpExecutor* executor = nullptr;
-
-    // get device pointer of scalar tensor
-    auto error = aclGetRawTensorAddr(scalar_factor.tensorPtr, &scalar_factor_ptr);
-    ACL_RT_CHECK(error, "aclGetRawTensorAddr");
-
-    // copy conversion factor to device (adapt by data type)
-    if (x.aclDtype == ACL_FLOAT) {
-        float factor = static_cast<float>(rad_factor);
-        error = aclrtMemcpy(scalar_factor_ptr, sizeof(float), &factor, sizeof(float), ACL_MEMCPY_HOST_TO_DEVICE);
-        ACL_RT_CHECK(error, "aclrtMemcpy");
-    } else if (x.aclDtype == ACL_DOUBLE) {
-        error = aclrtMemcpy(scalar_factor_ptr, sizeof(double), &rad_factor, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
-        ACL_RT_CHECK(error, "aclrtMemcpy");
+    aclScalar* factor_scalar;
+    if (x.aclDtype == ACL_DOUBLE) {
+        double factor = rad_factor;
+        factor_scalar = aclCreateScalar(&factor, x.aclDtype);
     } else if (x.aclDtype == ACL_FLOAT16) {
-        float factor_float = static_cast<float>(rad_factor);
-        uint32_t float_bits;
-        std::memcpy(&float_bits, &factor_float, sizeof(float_bits));
-        uint16_t fp16_bits = static_cast<uint16_t>(((float_bits >> 16) & 0x8000U) | (((float_bits >> 13) - 0x1C000U) & 0x7C00U) |
-                                                   ((float_bits >> 13) & 0x03FFU));
-        error = aclrtMemcpy(scalar_factor_ptr, sizeof(uint16_t), &fp16_bits, sizeof(uint16_t), ACL_MEMCPY_HOST_TO_DEVICE);
-        ACL_RT_CHECK(error, "aclrtMemcpy");
+        uint16_t fp16_bits = FloatToFp16Bits(static_cast<float>(rad_factor));
+        factor_scalar = aclCreateScalar(&fp16_bits, x.aclDtype);
+    } else {
+        float factor = static_cast<float>(rad_factor);
+        factor_scalar = aclCreateScalar(&factor, x.aclDtype);
     }
 
-    // wrap single tensor as tensor list (matching interface parameter requirements)
-    aclTensor* input_tensors[] = {x.tensorPtr};
-    aclTensorList* input_list = aclCreateTensorList(input_tensors, 1);
-
-    aclTensor* output_tensors[] = {result.tensorPtr};
-    aclTensorList* output_list = aclCreateTensorList(output_tensors, 1);
-
     // get workspace size
-    error = aclnnForeachMulScalarGetWorkspaceSize(input_list, scalar_factor.tensorPtr, output_list, &workspace_size,
-                                                  &executor);
-    ACLNN_CHECK(error, "aclnnForeachMulScalarGetWorkspaceSize");
+    uint64_t workspace_size = 0;
+    aclOpExecutor* executor = nullptr;
+    auto error = aclnnMulsGetWorkspaceSize(x.tensorPtr, factor_scalar, result.tensorPtr, &workspace_size, &executor);
+    ACLNN_CHECK(error, "aclnnMulsGetWorkspaceSize");
 
     // allocate workspace
     AclWorkspace workspace(workspace_size);
 
     // execute scalar multiplication
-    error = aclnnForeachMulScalar(workspace.get(), workspace_size, executor, nullptr);
-    ACLNN_CHECK(error, "aclnnForeachMulScalar");
+    error = aclnnMuls(workspace.get(), workspace_size, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnMuls");
 
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
 
-    LOG_INFO("aclnnForeachMulScalar completed");
+    aclDestroyScalar(factor_scalar);
+
+    LOG_INFO("aclnnMuls completed");
 
     return result;
 }
 
 NPUArray Degrees(const NPUArray& x) {
-    LOG_DEBUG("aclnnMul start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape), AclDtypeName(x.aclDtype));
+    LOG_DEBUG("aclnnMuls start: input_shape={}, aclDtype={}", detail::FormatShape(x.shape), AclDtypeName(x.aclDtype));
 
-    aclDataType aclType = ACL_DOUBLE;
-    if (x.aclDtype == ACL_FLOAT || x.aclDtype == ACL_FLOAT16 || x.aclDtype == ACL_DOUBLE) {
-        aclType = x.aclDtype;
+    aclDataType aclType = PromoteUnaryFloating(x.aclDtype);
+    ACL_DTYPE_WARN(x.aclDtype, aclType, __func__);
+    NPUArray in = EnsureAclDtype(x, aclType);
+
+    // initialize output tensor (same shape and dtype as input)
+    NPUArray result(x.shape, aclType);
+
+    // radians-to-degrees factor: 180/π
+    const double deg_factor = 180.0 / M_PI;
+    aclScalar* factor_scalar;
+    if (aclType == ACL_DOUBLE) {
+        double factor = deg_factor;
+        factor_scalar = aclCreateScalar(&factor, aclType);
+    } else if (aclType == ACL_FLOAT16) {
+        uint16_t fp16_bits = FloatToFp16Bits(static_cast<float>(deg_factor));
+        factor_scalar = aclCreateScalar(&fp16_bits, aclType);
+    } else {
+        float factor = static_cast<float>(deg_factor);
+        factor_scalar = aclCreateScalar(&factor, aclType);
     }
-    auto out = NPUArray(x.shape, aclType);
-    const double factor = 180.0 / M_PI;
-    auto factorArr = NPUArray({1}, aclType);
-    void* factorPtr = nullptr;
-    auto error = aclGetRawTensorAddr(factorArr.tensorPtr, &factorPtr);
-    ACL_RT_CHECK(error, "aclGetRawTensorAddr");
-    double hostValue = factor;
-    error = aclrtMemcpy(factorPtr, sizeof(double), &hostValue, sizeof(double), ACL_MEMCPY_HOST_TO_DEVICE);
-    ACL_RT_CHECK(error, "Write const factor");
+
+    // get workspace size
     uint64_t workspaceSize = 0;
     aclOpExecutor* executor = nullptr;
-    error = aclnnMulGetWorkspaceSize(x.tensorPtr, factorArr.tensorPtr, out.tensorPtr, &workspaceSize, &executor);
-    ACLNN_CHECK(error, "aclnnMulGetWorkspaceSize");
+    auto error = aclnnMulsGetWorkspaceSize(in.tensorPtr, factor_scalar, result.tensorPtr, &workspaceSize, &executor);
+    ACLNN_CHECK(error, "aclnnMulsGetWorkspaceSize");
     AclWorkspace workspace(workspaceSize);
-    error = aclnnMul(workspace.get(), workspaceSize, executor, nullptr);
-    ACLNN_CHECK(error, "aclnnMul");
+    error = aclnnMuls(workspace.get(), workspaceSize, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnMuls");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
 
-    LOG_INFO("aclnnMul completed");
+    aclDestroyScalar(factor_scalar);
 
-    return out;
+    LOG_INFO("aclnnMuls completed");
+
+    return result;
 }
 } // namespace asnumpy

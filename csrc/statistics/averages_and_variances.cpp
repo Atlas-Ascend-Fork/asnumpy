@@ -67,25 +67,6 @@ NPUArray FlattenArray(const NPUArray& a) {
 
     return temp;
 }
-
-double ExtractScalarValue(const NPUArray& result) {
-    py::array x = result.ToNumpy();
-    py::dtype dt = x.dtype();
-    py::buffer_info buf = x.request();
-
-    if (dt.is(py::dtype::of<int>())) {
-        int* results = static_cast<int*>(buf.ptr);
-        return results[0];
-    } else if (dt.is(py::dtype::of<double>())) {
-        double* results = static_cast<double*>(buf.ptr);
-        return results[0];
-    } else if (dt.is(py::dtype::of<float>())) {
-        float* results = static_cast<float*>(buf.ptr);
-        return results[0];
-    } else {
-        throw std::runtime_error(fmt::format("[averages_and_variances.cpp]({}) unsupported dtype", __func__));
-    }
-}
 } // namespace
 
 NPUArray Mean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::dtype> dtype) {
@@ -118,11 +99,12 @@ NPUArray Mean(const NPUArray& a, int64_t axis, bool keepdims, std::optional<py::
     ACLNN_CHECK(error, "aclnnMean");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnMean completed");
     return result;
 }
 
-double Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
+py::object Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
     LOG_DEBUG("aclnnMean start: input_shape={}, tensorSize={}, aclDtype={}", detail::FormatShape(a.shape), a.tensorSize,
               AclDtypeName(a.aclDtype));
     auto temp = FlattenArray(a);
@@ -144,7 +126,8 @@ double Mean(const NPUArray& a, std::optional<py::dtype> dtype) {
     ACLNN_CHECK(error, "aclnnMean");
     error = aclrtSynchronizeDevice();
     ACL_RT_CHECK(error, "aclrtSynchronizeDevice");
+    aclDestroyIntArray(axis_array);
     LOG_INFO("aclnnMean completed");
-    return ExtractScalarValue(result);
+    return result.ToNumpy()[py::int_(0)];
 }
 } // namespace asnumpy
