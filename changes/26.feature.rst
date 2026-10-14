@@ -1,0 +1,3 @@
+Add ``asnumpy.linalg.svd`` and ``asnumpy.linalg.pinv`` (issue #26). ``svd`` computes the
+decomposition on the NPU via ``aclnnSvd`` and returns NumPy's ``(u, s, vh)`` convention; ``pinv``
+reuses that device SVD and applies NumPy's singular-value cutoff and Moore-Penrose assembly.

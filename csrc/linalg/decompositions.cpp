@@ -23,7 +23,9 @@
 #include <acl/acl.h>
 #include <aclnn/aclnn_base.h>
 #include <aclnnop/aclnn_linalg_qr.h>
+#include <aclnnop/aclnn_svd.h>
 
+#include <algorithm>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <stdexcept>
@@ -104,4 +106,88 @@ py::object Linalg_Qr(const NPUArray& a, const std::string& mode) {
         LOG_INFO("aclnnLinalgQr completed");
         return py::make_tuple(py::cast(std::move(resultQ)), py::cast(std::move(resultR)));
     }
+}
+
+namespace {
+
+/// Run aclnnSvd once the output tensors have been prepared.
+void RunSvd(const NPUArray& input, bool full_matrices, bool compute_uv, NPUArray& sigma, aclTensor* u, aclTensor* v) {
+    uint64_t workspaceSize = 0;
+    aclOpExecutor* executor = nullptr;
+    auto error = aclnnSvdGetWorkspaceSize(input.tensorPtr, full_matrices, compute_uv, sigma.tensorPtr, u, v,
+                                          &workspaceSize, &executor);
+    ACLNN_CHECK(error, "aclnnSvdGetWorkspaceSize");
+
+    AclWorkspace workspace(workspaceSize);
+    error = aclnnSvd(workspace.get(), workspaceSize, executor, nullptr);
+    ACLNN_CHECK(error, "aclnnSvd");
+
+    auto sync = aclrtSynchronizeDevice();
+    ACL_RT_CHECK(sync, "aclrtSynchronizeDevice");
+    LOG_INFO("aclnnSvd completed");
+}
+
+/// aclnnSvd demands non-null u/v handles even when computeUV is false; own two empty placeholders.
+class EmptyUvPlaceholders {
+  public:
+    explicit EmptyUvPlaceholders(aclDataType dtype) {
+        u_ = aclCreateTensor(shape_, 1, dtype, stride_, 0, ACL_FORMAT_ND, shape_, 1, nullptr);
+        v_ = aclCreateTensor(shape_, 1, dtype, stride_, 0, ACL_FORMAT_ND, shape_, 1, nullptr);
+    }
+
+    ~EmptyUvPlaceholders() {
+        aclDestroyTensor(u_);
+        aclDestroyTensor(v_);
+    }
+
+    EmptyUvPlaceholders(const EmptyUvPlaceholders&) = delete;
+    EmptyUvPlaceholders& operator=(const EmptyUvPlaceholders&) = delete;
+
+    aclTensor* u() const { return u_; }
+    aclTensor* v() const { return v_; }
+
+  private:
+    int64_t shape_[1] = {0};
+    int64_t stride_[1] = {1};
+    aclTensor* u_ = nullptr;
+    aclTensor* v_ = nullptr;
+};
+
+} // namespace
+
+py::object Linalg_Svd(const NPUArray& a, bool full_matrices, bool compute_uv) {
+    const size_t rank = a.shape.size();
+    if (rank < 2) {
+        throw std::invalid_argument("[decompositions.cpp](svd) input must have at least two dimensions");
+    }
+    LOG_DEBUG("aclnnSvd start: input_shape={}, aclDtype={}, full_matrices={}, compute_uv={}",
+              detail::FormatShape(a.shape), AclDtypeName(a.aclDtype), full_matrices, compute_uv);
+
+    const int64_t m = a.shape[rank - 2];
+    const int64_t n = a.shape[rank - 1];
+    const int64_t k = std::min(m, n);
+
+    std::vector<int64_t> batch(a.shape.begin(), a.shape.end() - 2);
+    std::vector<int64_t> sigma_shape = batch;
+    sigma_shape.push_back(k);
+    std::vector<int64_t> u_shape = batch;
+    u_shape.push_back(m);
+    u_shape.push_back(full_matrices ? m : k);
+    // aclnnSvd returns V (not V^H): reduced is (..., N, K), full is (..., N, N).
+    std::vector<int64_t> v_shape = batch;
+    v_shape.push_back(n);
+    v_shape.push_back(full_matrices ? n : k);
+
+    auto sigma = NPUArray(sigma_shape, a.aclDtype);
+    if (!compute_uv) {
+        EmptyUvPlaceholders placeholders(a.aclDtype);
+        RunSvd(a, full_matrices, false, sigma, placeholders.u(), placeholders.v());
+        return py::cast(std::move(sigma));
+    }
+
+    auto resultU = NPUArray(u_shape, a.aclDtype);
+    auto resultV = NPUArray(v_shape, a.aclDtype);
+    RunSvd(a, full_matrices, true, sigma, resultU.tensorPtr, resultV.tensorPtr);
+    // NumPy returns (u, sigma, vh); vh is derived from V by the Python wrapper.
+    return py::make_tuple(py::cast(std::move(resultU)), py::cast(std::move(sigma)), py::cast(std::move(resultV)));
 }

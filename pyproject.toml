@@ -22,7 +22,6 @@ requires = [
   "pybind11>=3.0.0",
   "numpy>=2.0",
   "setuptools-scm==9.2.2",
-  "towncrier>=24",
 ]
 build-backend = "scikit_build_core.build"
 
@@ -50,6 +49,10 @@ dev = [
     "ruff>=0.15.0",
     "mypy>=1.19.0",
     "pre-commit>=4.0.0",
+    # Release-time changelog tooling. towncrier is a CLI run by a maintainer, not part of the
+    # build backend, so it must not sit in [build-system].requires: a mirror that cannot serve it
+    # (or serves it transiently) would otherwise abort every build before compilation starts.
+    "towncrier>=24",
 ]
 test = [
     "pytest>=9.0.0",
@@ -108,7 +111,9 @@ provider = "scikit_build_core.metadata.setuptools_scm"
 write_to = "src/asnumpy/_version.py"
 tag_regex = '^v?(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$'
 
-# towncrier configuration (fragment-based CHANGELOG management)
+# towncrier configuration (fragment-based CHANGELOG management).
+# Release-time only: it is a maintainer CLI, not a build hook. Install it with
+# `pip install -e ".[dev]"` and generate the release notes with `towncrier build`.
 [tool.towncrier]
 directory = "changes"
 filename = "CHANGELOG.md"
