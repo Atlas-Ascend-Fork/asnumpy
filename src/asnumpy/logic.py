@@ -64,19 +64,32 @@ from ._core.logic import (
 )
 from ._types import ArrayLike, AxisLike, DTypeLike
 from ._ufunc import create_ufunc as _create_ufunc
-from .utils import _convert_dtype, ndarray
+from .utils import _convert_dtype, _ensure_ndarray, ndarray
+
+
+def _normalize_axis_arg(axis: AxisLike) -> list[int] | None:
+    """Wrap a bare int axis into a list; the C++ layer owns axis semantics."""
+    if axis is None:
+        return None
+    if isinstance(axis, int):
+        return [axis]
+    return list(axis)
 
 
 def all(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
-    if axis is None:
+    x = _ensure_ndarray(x)
+    axes = _normalize_axis_arg(axis)
+    if axes is None:
         return ndarray(_all(x))
-    return ndarray(_all(x, axis, keepdims))
+    return ndarray(_all(x, axes, keepdims))
 
 
 def any(x: ArrayLike, axis: AxisLike = None, keepdims: bool = False) -> ndarray:
-    if axis is None:
+    x = _ensure_ndarray(x)
+    axes = _normalize_axis_arg(axis)
+    if axes is None:
         return ndarray(_any(x))
-    return ndarray(_any(x, axis, keepdims))
+    return ndarray(_any(x, axes, keepdims))
 
 
 # ---------- Unary is-checks ----------
