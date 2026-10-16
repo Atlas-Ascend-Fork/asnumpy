@@ -79,6 +79,36 @@ def test_from_numpy_preserves_metadata_and_values():
     numpy.testing.assert_array_equal(result.to_numpy(), host)
 
 
+def test_from_numpy_strided_slice_roundtrip():
+    # issue #41: non-contiguous inputs are normalized before the H2D copy
+    host = numpy.arange(10, dtype=numpy.float32)[::2]
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
+def test_from_numpy_transpose_roundtrip():
+    host = numpy.arange(6, dtype=numpy.float32).reshape(2, 3).T
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
+def test_from_numpy_negative_stride_roundtrip():
+    # a negative stride points info.ptr at the buffer end; a raw memcpy would
+    # read host memory out of bounds
+    host = numpy.arange(5, dtype=numpy.float32)[::-1]
+
+    result = asnumpy.ndarray.from_numpy(host)
+
+    assert result.shape == host.shape
+    numpy.testing.assert_array_equal(result.to_numpy(), host)
+
+
 def test_public_ndarray_constructor_keeps_source_valid():
     expected = numpy.array([1.0, 2.0, 3.0], dtype=numpy.float32)
     source = asnumpy.ndarray.from_numpy(expected)
