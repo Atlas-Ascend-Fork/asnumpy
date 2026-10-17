@@ -233,58 +233,40 @@ NPUArray ones_like(const NPUArray& other, py::dtype dtype) {
     return array;
 }
 
-NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype) {
-    LOG_DEBUG("aclnnLinspace start");
-    double start_val = 0.0, end_val = 0.0;
-    int64_t steps_val = 0;
+namespace {
 
+py::dtype ResolveLinspaceDtype(const py::object& dtype) {
+    if (dtype.is_none()) {
+        return py::dtype::of<double>();
+    }
     try {
-        start_val = py::cast<double>(start);
-        end_val = py::cast<double>(end);
-        steps_val = py::cast<int64_t>(steps);
-    } catch (const py::cast_error& e) {
-        throw std::runtime_error("[basic.cpp](linspace) Invalid start/end/steps type: " + std::string(e.what()));
-    }
-
-    if (steps_val <= 0) {
-        throw std::runtime_error("[basic.cpp](linspace) steps must be > 0.");
-    }
-
-    py::dtype final_dtype;
-
-    if (!dtype.is_none()) {
-        try {
-            final_dtype = py::dtype(dtype);
-        } catch (...) {
-            if (py::isinstance<py::str>(dtype)) {
-                final_dtype = py::dtype(py::str(dtype));
-            } else if (py::hasattr(dtype, "__name__")) {
-                try {
-                    auto numpy = py::module_::import("numpy");
-                    final_dtype = numpy.attr("dtype")(dtype);
-                } catch (...) {
-                    throw std::runtime_error("[basic.cpp](linspace) Failed to create dtype from numpy type: " +
-                                             std::string(py::str(dtype)));
-                }
-            } else if (py::hasattr(dtype, "dtype")) {
-                final_dtype = dtype.attr("dtype");
-            } else {
-                try {
-                    std::string dtype_str = py::cast<std::string>(dtype);
-                    final_dtype = py::dtype(dtype_str);
-                } catch (...) {
-                    throw std::runtime_error("[basic.cpp](linspace) Unsupported dtype parameter type: " +
-                                             std::string(py::str(dtype)));
-                }
+        return py::dtype(dtype);
+    } catch (...) {
+        if (py::isinstance<py::str>(dtype)) {
+            return py::dtype(py::str(dtype));
+        }
+        if (py::hasattr(dtype, "__name__")) {
+            try {
+                auto numpy = py::module_::import("numpy");
+                return numpy.attr("dtype")(dtype);
+            } catch (...) {
+                throw std::runtime_error("[basic.cpp](linspace) Failed to create dtype from numpy type: " +
+                                         std::string(py::str(dtype)));
             }
         }
-    } else {
-        final_dtype = py::dtype::of<double>();
+        if (py::hasattr(dtype, "dtype")) {
+            return dtype.attr("dtype");
+        }
+        try {
+            return py::dtype(py::cast<std::string>(dtype));
+        } catch (...) {
+            throw std::runtime_error("[basic.cpp](linspace) Unsupported dtype parameter type: " +
+                                     std::string(py::str(dtype)));
+        }
     }
+}
 
-    std::vector<int64_t> out_shape = {steps_val};
-    NPUArray out(out_shape, final_dtype);
-
+void RunLinspace(NPUArray& out, double start_val, double end_val, int64_t steps_val) {
     if (out.tensorPtr == nullptr) {
         throw std::runtime_error("[basic.cpp](linspace) out.tensorPtr is null, failed to allocate output tensor");
     }
@@ -334,6 +316,40 @@ NPUArray Linspace(const py::object& start, const py::object& end, const py::obje
     }
 
     scalarGuard();
+}
+
+} // namespace
+
+NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype,
+                  bool endpoint) {
+    LOG_DEBUG("aclnnLinspace start");
+    double start_val = 0.0, end_val = 0.0;
+    int64_t steps_val = 0;
+
+    try {
+        start_val = py::cast<double>(start);
+        end_val = py::cast<double>(end);
+        steps_val = py::cast<int64_t>(steps);
+    } catch (const py::cast_error& e) {
+        throw std::runtime_error("[basic.cpp](linspace) Invalid start/end/steps type: " + std::string(e.what()));
+    }
+
+    if (steps_val < 0) {
+        throw py::value_error("[basic.cpp](linspace) steps must be >= 0.");
+    }
+
+    NPUArray out({steps_val}, ResolveLinspaceDtype(dtype));
+    if (steps_val == 0) {
+        return out;
+    }
+    if (!endpoint) {
+        // aclnnLinspace includes its endpoint: adjust the final sample instead
+        // of allocating an extra element and slicing the device output.
+        end_val =
+            start_val + (end_val - start_val) * (static_cast<double>(steps_val - 1) / static_cast<double>(steps_val));
+    }
+
+    RunLinspace(out, start_val, end_val, steps_val);
     LOG_INFO("aclnnLinspace completed");
     return out;
 }
