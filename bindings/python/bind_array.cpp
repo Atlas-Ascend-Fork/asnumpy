@@ -35,5 +35,5 @@ void bind_array(pybind11::module_& array) {
     array.def("ones_like", &ones_like, py::arg("other"), py::arg("dtype"));
     array.def("identity", &Identity, py::arg("n"), py::arg("dtype"));
     array.def("linspace", &Linspace, py::arg("start"), py::arg("end"), py::arg("steps") = 50,
-              py::arg("dtype") = py::none());
+              py::arg("dtype") = py::none(), py::arg("endpoint") = true);
 }

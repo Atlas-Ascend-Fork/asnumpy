@@ -233,7 +233,8 @@ NPUArray ones_like(const NPUArray& other, py::dtype dtype) {
     return array;
 }
 
-NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype) {
+NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype,
+                  bool endpoint) {
     LOG_DEBUG("aclnnLinspace start");
     double start_val = 0.0, end_val = 0.0;
     int64_t steps_val = 0;
@@ -246,8 +247,8 @@ NPUArray Linspace(const py::object& start, const py::object& end, const py::obje
         throw std::runtime_error("[basic.cpp](linspace) Invalid start/end/steps type: " + std::string(e.what()));
     }
 
-    if (steps_val <= 0) {
-        throw std::runtime_error("[basic.cpp](linspace) steps must be > 0.");
+    if (steps_val < 0) {
+        throw py::value_error("[basic.cpp](linspace) steps must be >= 0.");
     }
 
     py::dtype final_dtype;
@@ -284,6 +285,15 @@ NPUArray Linspace(const py::object& start, const py::object& end, const py::obje
 
     std::vector<int64_t> out_shape = {steps_val};
     NPUArray out(out_shape, final_dtype);
+    if (steps_val == 0) {
+        return out;
+    }
+    if (!endpoint) {
+        // aclnnLinspace includes its endpoint: adjust the final sample instead
+        // of allocating an extra element and slicing the device output.
+        end_val =
+            start_val + (end_val - start_val) * (static_cast<double>(steps_val - 1) / static_cast<double>(steps_val));
+    }
 
     if (out.tensorPtr == nullptr) {
         throw std::runtime_error("[basic.cpp](linspace) out.tensorPtr is null, failed to allocate output tensor");
