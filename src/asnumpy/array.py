@@ -14,6 +14,8 @@
 # limitations under the License.
 # *****************************************************************************
 
+import operator
+
 from loguru import logger
 
 from ._core.array import (
@@ -119,6 +121,16 @@ def linspace(
     end: ScalarLike,
     steps: int = 50,
     dtype: DTypeLike = None,
+    *,
+    endpoint: bool = True,
 ) -> ndarray:
+    """Return equally spaced samples, optionally excluding the endpoint.
+
+    ``steps=0`` returns an empty array. The existing positional ``dtype``
+    argument is preserved; ``endpoint`` is keyword-only.
+    """
+    steps = operator.index(steps)
+    if steps < 0:
+        raise ValueError("steps must be >= 0")
     logger.debug(f"Creating linspace array start={start}, end={end}, steps={steps}, dtype={dtype}")
-    return ndarray(_linspace(start, end, steps, _convert_dtype(dtype)))
+    return ndarray(_linspace(start, end, steps, _convert_dtype(dtype), endpoint))

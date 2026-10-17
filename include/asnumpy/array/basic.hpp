@@ -41,6 +41,7 @@ NPUArray Identity(int64_t n, py::dtype dtype);
 
 NPUArray ones_like(const NPUArray& other, py::dtype dtype);
 
-NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype);
+NPUArray Linspace(const py::object& start, const py::object& end, const py::object& steps, const py::object& dtype,
+                  bool endpoint = true);
 
 } // namespace asnumpy
