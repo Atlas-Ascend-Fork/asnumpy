@@ -119,6 +119,45 @@ find_package(spdlog REQUIRED PATHS /usr/lib64/cmake /usr/lib/cmake /usr/lib/aarc
 message(STATUS "Using system spdlog: ${spdlog_VERSION}")
 add_compile_definitions(SPDLOG_FMT_EXTERNAL)
 
+# ========== ops-solver (optional asnumpy.linalg.inv backend) ==========
+# asnumpy.linalg.inv can optionally run on CANN ops-solver (aclsolverSgetri) instead of aclnnInverse.
+# The dependency is never downloaded and no path is hardcoded: point ASNUMPY_OPS_SOLVER_ROOT at an
+# ops-solver checkout or build tree (containing include/cann_ops_solver.h and libops_solver.so), or
+# set the include/library variables directly. See docs/inv_backend.md.
+option(ASNUMPY_ENABLE_OPS_SOLVER "Build the optional ops-solver backend for asnumpy.linalg.inv" OFF)
+set(ASNUMPY_OPS_SOLVER_ROOT "$ENV{ASNUMPY_OPS_SOLVER_ROOT}" CACHE PATH
+    "ops-solver prefix containing include/cann_ops_solver.h and libops_solver.so")
+
+if(ASNUMPY_ENABLE_OPS_SOLVER)
+    if(NOT ASNUMPY_OPS_SOLVER_INCLUDE_DIR AND ASNUMPY_OPS_SOLVER_ROOT)
+        find_path(ASNUMPY_OPS_SOLVER_INCLUDE_DIR cann_ops_solver.h
+                  PATHS "${ASNUMPY_OPS_SOLVER_ROOT}" "${ASNUMPY_OPS_SOLVER_ROOT}/include"
+                  NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_SOLVER_LIBRARY AND ASNUMPY_OPS_SOLVER_ROOT)
+        find_library(ASNUMPY_OPS_SOLVER_LIBRARY ops_solver
+                     PATHS "${ASNUMPY_OPS_SOLVER_ROOT}"
+                           "${ASNUMPY_OPS_SOLVER_ROOT}/build-lib"
+                           "${ASNUMPY_OPS_SOLVER_ROOT}/build"
+                           "${ASNUMPY_OPS_SOLVER_ROOT}/lib64"
+                           "${ASNUMPY_OPS_SOLVER_ROOT}/lib"
+                     NO_DEFAULT_PATH)
+    endif()
+    if(NOT ASNUMPY_OPS_SOLVER_INCLUDE_DIR OR NOT ASNUMPY_OPS_SOLVER_LIBRARY)
+        message(FATAL_ERROR
+            "ASNUMPY_ENABLE_OPS_SOLVER=ON, but ops-solver was not found (include='${ASNUMPY_OPS_SOLVER_INCLUDE_DIR}', "
+            "library='${ASNUMPY_OPS_SOLVER_LIBRARY}').\n"
+            "Clone and build ops-solver for the target SoC first:\n"
+            "  git clone https://gitcode.com/cann/ops-solver.git && cd ops-solver\n"
+            "  cmake -S . -B build-lib -DSOC_VERSION=ascend910b -DBUILD_TEST=OFF -DCMAKE_BUILD_TYPE=Release\n"
+            "  cmake --build build-lib -j\n"
+            "then configure asnumpy with -DASNUMPY_ENABLE_OPS_SOLVER=ON -DASNUMPY_OPS_SOLVER_ROOT=<ops-solver root>.")
+    endif()
+    message(STATUS "ops-solver enabled: ${ASNUMPY_OPS_SOLVER_LIBRARY} (include: ${ASNUMPY_OPS_SOLVER_INCLUDE_DIR})")
+else()
+    message(STATUS "ops-solver disabled: asnumpy.linalg.inv keeps the default aclnnInverse backend")
+endif()
+
 # ========== Source directories ==========
 include_directories(include)
 add_subdirectory(csrc)

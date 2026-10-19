@@ -15,6 +15,7 @@
  ******************************************************************************/
 
 #include <asnumpy/linalg/decompositions.hpp>
+#include <asnumpy/linalg/inv_ops_solver.hpp>
 #include <asnumpy/linalg/norms.hpp>
 #include <asnumpy/linalg/product.hpp>
 #include <asnumpy/linalg/solving_inverting.hpp>
@@ -45,6 +46,10 @@ void bind_linalg(py::module_& linalg) {
 
 // API with ap.xxxx usage
 void bind_linalg_no_submodule(py::module_& linalg) {
+    // Raised by the optional ops-solver backend for exactly singular input; the Python wrapper turns
+    // it into numpy.linalg.LinAlgError, matching NumPy's public contract.
+    py::register_exception<OpsSolverSingularMatrix>(linalg, "OpsSolverSingularMatrix");
+    linalg.def("inv_ops_solver", &InvOpsSolver, py::arg("a"));
     linalg.def("dot", &dot, py::arg("a"), py::arg("b"));
     linalg.def("inner", &inner, py::arg("a"), py::arg("b"));
     linalg.def("outer", &outer, py::arg("a"), py::arg("b"));

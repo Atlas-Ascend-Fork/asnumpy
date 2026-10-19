@@ -14,7 +14,13 @@
 # limitations under the License.
 # *****************************************************************************
 
-add_library(linalg OBJECT norms.cpp product.cpp decompositions.cpp solving_inverting.cpp)
+add_library(linalg OBJECT norms.cpp product.cpp decompositions.cpp solving_inverting.cpp inv_ops_solver.cpp)
 
 target_include_directories(linalg PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(linalg PUBLIC fmt::fmt pybind11::pybind11)
+
+if(ASNUMPY_ENABLE_OPS_SOLVER)
+    target_compile_definitions(linalg PUBLIC ASNUMPY_ENABLE_OPS_SOLVER=1)
+    target_include_directories(linalg PUBLIC ${ASNUMPY_OPS_SOLVER_INCLUDE_DIR})
+    target_link_libraries(linalg PUBLIC ${ASNUMPY_OPS_SOLVER_LIBRARY})
+endif()
