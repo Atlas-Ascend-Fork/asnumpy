@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include <asnumpy/utils/status_handler.hpp>
 
@@ -127,6 +128,31 @@ void RunOpsSolverInverse(const NPUArray& a, int64_t n, NPUArray& result) {
     }
     error = aclrtMemcpy(staging.get(), bytes, a.device_address(), bytes, ACL_MEMCPY_DEVICE_TO_HOST);
     ACL_RT_CHECK(error, "aclrtMemcpy(device->host)");
+
+    // 奇异检测：调用本库公开的 aclsolverSgetrf 对 host 副本做一次 LU（原地写回 LU），按 LAPACK 的
+    // 精确零主元判据扫描 U 对角线。命中即抛 OpsSolverSingularMatrix（→ numpy.linalg.LinAlgError），
+    // 且根本不调用 aclsolverSgetri，因此调用方的输入与结果都不会被触碰。
+    // 注意：Sgetri 的输入必须是原始矩阵；这里只在副本上分解，绝不把 LU 结果传给 Sgetri。
+    // 已知限制：数学奇异但 LU 未产生精确零主元的矩阵不会被判为奇异（与 LAPACK 判据一致）。
+    {
+        const float* stagingF = static_cast<const float*>(staging.get());
+        const size_t elements = static_cast<size_t>(n) * static_cast<size_t>(n);
+        std::vector<float> luCopy(stagingF, stagingF + elements);
+        std::vector<int32_t> ipiv(static_cast<size_t>(n));
+        int32_t luInfo = 0;
+        const aclError luRet = aclsolverSgetrf(handle.get(), n, n, luCopy.data(), n, ipiv.data(), &luInfo);
+        ACL_RT_CHECK(luRet, "aclsolverSgetrf");
+        for (int64_t k = 0; k < n; ++k)
+        {
+            if (luCopy[static_cast<size_t>(k) * static_cast<size_t>(n) + static_cast<size_t>(k)] == 0.0f)
+            {
+                throw OpsSolverSingularMatrix(fmt::format(
+                    "Singular matrix: asnumpy.linalg.inv(ops-solver) found U({0},{0}) exactly zero (column {0}); "
+                    "the input was left unchanged",
+                    k + 1));
+            }
+        }
+    }
 
     int32_t info = 0;
     const aclError ret = aclsolverSgetri(handle.get(), n, static_cast<float*>(staging.get()), n, &info);
