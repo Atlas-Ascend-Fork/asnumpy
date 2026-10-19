@@ -125,7 +125,7 @@ master ─── PR_A ─── PR_B ─── PR_C ─── PR_D ─── PR_
    git tag v0.3.0
    ```
 4. If additional fixes are needed after tagging, apply them on the release branch and tag a new patch version (e.g., `v0.3.1`).
-5. Cherry-pick those fixes back to `master` (see [Hotfix Process](#333-hotfix-process)).
+5. Cherry-pick those fixes back to `master` (see [Hotfix Process](#hotfix-process)).
 6. Delete the release branch when the release series is no longer maintained:
    ```bash
    git branch -d release/v0.3.0
