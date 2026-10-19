@@ -29,7 +29,7 @@ namespace asnumpy {
  *
  * Uses aclnnRoundDecimals to round each element to the specified number of decimal places.
  *
- * @param a Input array.
+ * @param x Input array.
  * @param decimals Number of decimal places to round to (default 0).
  * @param dtype Target numpy dtype for the output array.
  * @return NPUArray Array with elements rounded to the specified decimals.
@@ -42,7 +42,7 @@ NPUArray Around(const NPUArray& x, int decimals, std::optional<py::dtype> dtype 
  *
  * Equivalent to around(). Provided for API compatibility with NumPy.
  *
- * @param a Input array.
+ * @param x Input array.
  * @param decimals Number of decimal places to round to (default 0).
  * @param dtype Target numpy dtype for the output array.
  * @return NPUArray Array with elements rounded to the specified decimals.
