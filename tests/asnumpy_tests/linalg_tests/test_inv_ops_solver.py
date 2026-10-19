@@ -21,6 +21,7 @@ LinAlgError，且输入不被修改）、数值奇异但非精确奇异（与 nu
 中等尺寸、非法输入、输入不被覆盖、默认后端不受影响、重复调用与失败后恢复。
 """
 
+import logging
 import os
 
 import numpy as np
@@ -29,11 +30,9 @@ import pytest
 import asnumpy
 from asnumpy.linalg import _linalg
 
-# 精度判据（不为了通过而放宽）：
-#   forward = max|X - X_ref|（float64 参考）
-#   res_AX  = max|A @ X - I|, res_XA = max|X @ A - I|
-#   norm    = 残差 / (max|A| * max|X| + 1)
-# 良态 float32 方阵在 n <= 257 上，实测 res_norm <= 2e-6，这里留 ~50x 余量取 1e-4。
+logger = logging.getLogger(__name__)
+
+# 精度判据（不为了通过而放宽）：良态 float32 方阵在 n <= 257 上实测 res_norm <= 2e-6，这里留 ~50x 余量。
 RES_TOL = 1e-4
 FWD_RTOL = 1e-3
 FWD_ATOL = 1e-3
@@ -182,9 +181,13 @@ def test_ill_conditioned_is_reported_not_hidden():
     got = _ops_solver_inv(asnumpy.ndarray.from_numpy(a_host)).to_numpy()
     ref = np.linalg.inv(a_host.astype(np.float64))
     res_ax, _, n_ax, _ = _residuals(a_host, got)
-    print(
-        f"\n[ill-conditioned] n={n} cond={cond:.3e} forward={np.abs(got.astype(np.float64) - ref).max():.3e} "
-        f"res_AX={res_ax:.3e} res_norm={n_ax:.3e}"
+    logger.info(
+        "[ill-conditioned] n=%d cond=%.3e forward=%.3e res_AX=%.3e res_norm=%.3e",
+        n,
+        cond,
+        float(np.abs(got.astype(np.float64) - ref).max()),
+        res_ax,
+        n_ax,
     )
     assert np.isfinite(got).all()
 
