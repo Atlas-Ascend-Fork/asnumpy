@@ -56,6 +56,15 @@ def test_isfinite(xp, dtype):
     return xp.isfinite(a)
 
 
+@testing.for_dtypes([numpy.float16])
+@testing.numpy_asnumpy_array_equal()
+def test_isinf_float16(xp, dtype):
+    """测试 float16 无穷大检查"""
+    data = [numpy.inf, -numpy.inf, 1.0, 0.0]
+    a = _create_array(xp, data, dtype)
+    return xp.isinf(a)
+
+
 # ========== 2. 符号处理与负零 Bug (signbit, copysign) ==========
 
 
@@ -111,13 +120,6 @@ def test_fmod_basic(xp, dtype):
 
 
 # ========== 4. Dtype 与硬件限制 (XFAIL) ==========
-
-
-@pytest.mark.xfail(reason="[FIXABLE] C++ core missing aclDataType mapping for float16", strict=True)
-@testing.for_dtypes([numpy.float16])
-def test_float_routines_float16_xfail(xp, dtype):
-    a = _create_array(xp, [1.0], dtype)
-    return xp.isinf(a)
 
 
 @pytest.mark.xfail(

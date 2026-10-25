@@ -17,13 +17,11 @@
 """其他特殊数学函数测试
 
 针对已记录的算子限制进行标注：
-1. sinc: 基础功能支持 float32, float64。
-2. float16: 触发 RuntimeError (Unsupported py::dtype for aclDataType)，C++ 映射缺失。
-3. int32: 触发 RuntimeError 161002，底层算子输出类型不支持。
+1. sinc: 基础功能支持 float16, float32, float64。
+2. int32: 触发 RuntimeError 161002，底层算子输出类型不支持。
 """
 
 import numpy
-import pytest
 
 from asnumpy import testing
 
@@ -38,7 +36,7 @@ def _create_array(xp, data, dtype):
     return xp.ndarray.from_numpy(np_arr)
 
 
-# ========== 1. Sinc 正常链路 (Float32/64) ==========
+# ========== 1. Sinc 浮点正常链路 ==========
 
 
 @testing.for_dtypes([numpy.float64])
@@ -59,17 +57,17 @@ def test_sinc_zero(xp, dtype):
     return xp.sinc(a)
 
 
-# ========== 2. 异常与 Bug 记录 (XFAIL) ==========
-
-
-@pytest.mark.xfail(reason="[FIXABLE] C++ core missing aclDataType mapping for float16", strict=True)
+# float16's ULP near sinc(0.5)~0.64 is ~4.9e-4, and sinc(-3.0) underflows to 0, so the default
+# rtol=1e-7/atol=0 is far tighter than the type can hold.
 @testing.for_dtypes([numpy.float16])
-def test_sinc_float16_mapping_xfail(xp, dtype):
-    """
-    记录：sinc 虽然在硬件层面支持 float16，但 asnumpy 绑定层尚未处理该映射。
-    """
-    a = _create_array(xp, [0.5], dtype)
+@testing.numpy_asnumpy_allclose(rtol=1e-3, atol=1e-3)
+def test_sinc_float16(xp, dtype):
+    data = [-3.0, -1.5, 0.5, 2.0, 3.5]
+    a = _create_array(xp, data, dtype)
     return xp.sinc(a)
+
+
+# ========== 2. Sinc 整数 dtype 链路 (Int32) ==========
 
 
 @testing.for_dtypes([numpy.int32])
